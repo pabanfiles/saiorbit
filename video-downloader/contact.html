@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#050510">
+
+  <title>Contact Us — Orbit Video Downloader</title>
+  <meta name="description" content="Get in touch with the Orbit Video team for feedback, copyright inquiries, feature requests, or general support.">
+
+  <link rel="canonical" href="https://saiorbit.pages.dev/video-downloader/contact.html">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link rel="stylesheet" href="static/style.css">
+  <link rel="stylesheet" href="static/style-additions.css">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23a855f7'/%3E%3Cstop offset='50%25' style='stop-color:%23ec4899'/%3E%3Cstop offset='100%25' style='stop-color:%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='52' font-weight='bold' fill='white' text-anchor='middle'%3EO%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="logo">
+          <div class="logo-mark">O</div>
+          <span class="logo-text">Orbit Video</span>
+        </a>
+        <div class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="blog.html">Blog</a>
+          <a href="about.html">About</a>
+          <a href="contact.html" class="active">Contact</a>
+        </div>
+        <button type="button" class="menu-toggle-btn" id="btn-menu-toggle" aria-label="Toggle mobile menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Mobile Drawer -->
+  <div class="mobile-menu-drawer" id="mobile-drawer">
+    <a href="index.html" class="mobile-nav-link">Home</a>
+    <a href="blog.html" class="mobile-nav-link">Blog</a>
+    <a href="about.html" class="mobile-nav-link">About</a>
+    <a href="contact.html" class="mobile-nav-link">Contact</a>
+    <a href="privacy.html" class="mobile-nav-link">Privacy Policy</a>
+    <a href="terms.html" class="mobile-nav-link">Terms of Service</a>
+    <a href="disclaimer.html" class="mobile-nav-link">Disclaimer</a>
+  </div>
+
+  <!-- MAIN -->
+  <main class="container">
+
+    <section class="legal-wrapper">
+
+      <header class="legal-header">
+        <div class="hero-badge">
+          <span class="pulse-dot"></span>
+          <span>Get in Touch</span>
+        </div>
+        <h1>Contact <span class="gradient-text">Orbit Video</span></h1>
+        <p class="subtitle">We are here to assist with technical queries, DMCA notices, and feedback.</p>
+      </header>
+
+      <div class="contact-layout">
+
+        <!-- Contact Form -->
+        <div class="glass-card">
+          <form id="contact-form" class="contact-form">
+            <div class="form-group">
+              <label for="contact-name" class="form-label">Your Name *</label>
+              <input type="text" id="contact-name" name="name" class="form-input" placeholder="e.g. Alex Johnson" required />
+            </div>
+
+            <div class="form-group">
+              <label for="contact-email" class="form-label">Email Address *</label>
+              <input type="email" id="contact-email" name="email" class="form-input" placeholder="name@example.com" required />
+            </div>
+
+            <div class="form-group">
+              <label for="contact-subject" class="form-label">Subject</label>
+              <input type="text" id="contact-subject" name="subject" class="form-input" placeholder="e.g. Bug report, Partnership, Feedback" />
+            </div>
+
+            <div class="form-group">
+              <label for="contact-message" class="form-label">Message *</label>
+              <textarea id="contact-message" name="message" class="form-textarea" placeholder="Write your message or inquiry here..." required></textarea>
+            </div>
+
+            <button type="submit" id="btn-submit-contact" class="btn-fetch" style="margin-top: 0.5rem;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              <span>Send Message</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Info Cards -->
+        <div class="info-cards-stack">
+
+          <div class="info-card">
+            <div class="info-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3>Direct Email</h3>
+              <p style="color: #06b6d4;">support@saiorbit.com</p>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">DMCA: dmca@saiorbit.com</p>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="info-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3>Response Time</h3>
+              <p>Usually replies within 24 hours.</p>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Engineering active 7 days a week.</p>
+            </div>
+          </div>
+
+          <div class="info-card" style="flex-direction: column; align-items: stretch;">
+            <h3 style="margin-bottom: 0.5rem;">About Sai Orbit</h3>
+            <p style="font-size: 0.85rem; margin-bottom: 0.75rem;">Orbit Video is part of the Sai Orbit family of tools. Explore more:</p>
+            <a href="../index.html" class="btn-fetch" style="text-decoration: none; padding: 0.6rem 1rem; font-size: 0.85rem;">
+              ← Back to Sai Orbit
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="logo" style="margin-bottom: 0.75rem;">
+            <div class="logo-mark" style="width: 32px; height: 32px; font-size: 1.1rem;">O</div>
+            <span class="logo-text" style="font-size: 1.1rem;">Orbit Video</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.55;">
+            Fast • Free • No Watermark video downloader for 8 major platforms.
+          </p>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+            A <a href="../index.html" style="color: #a855f7; text-decoration: none;">Sai Orbit</a> product.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="index.html">Downloader</a></li>
+            <li><a href="blog.html">Blog</a></li>
+            <li><a href="about.html">About Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="privacy.html">Privacy Policy</a></li>
+            <li><a href="terms.html">Terms of Service</a></li>
+            <li><a href="disclaimer.html">Disclaimer</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Support</h4>
+          <ul>
+            <li><a href="contact.html">Contact Us</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        &copy; <span id="footer-year">2025</span> Sai Orbit · Orbit Video Downloader. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var y = document.getElementById('footer-year');
+      if (y) y.textContent = new Date().getFullYear();
+
+      var menuBtn = document.getElementById('btn-menu-toggle');
+      var drawer = document.getElementById('mobile-drawer');
+      if (menuBtn && drawer) {
+        menuBtn.addEventListener('click', function () {
+          drawer.classList.toggle('open');
+        });
+      }
+
+      // Contact form handler
+      var form = document.getElementById('contact-form');
+      var submitBtn = document.getElementById('btn-submit-contact');
+
+      if (form) {
+        form.addEventListener('submit', async function (e) {
+          e.preventDefault();
+
+          var name = document.getElementById('contact-name').value.trim();
+          var email = document.getElementById('contact-email').value.trim();
+          var subject = document.getElementById('contact-subject').value.trim();
+          var message = document.getElementById('contact-message').value.trim();
+
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.7';
+
+          try {
+            var res = await fetch('https://sai-digital.onrender.com/api/contact', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: name, email: email, subject: subject, message: message })
+            });
+            var data = await res.json();
+            if (res.ok && data.success) {
+              showToast('Message Sent', 'Thank you! Our team will get back to you shortly.', 'success');
+              form.reset();
+            } else {
+              showToast('Submission Issue', data.detail || 'Could not send message. Please try again.', 'error');
+            }
+          } catch (err) {
+            showToast('Network Error', 'Could not reach server. Please email support@saiorbit.com directly.', 'error');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+          }
+        });
+      }
+
+      function showToast(title, message, type) {
+        var container = document.getElementById('toast-container');
+        if (!container) return;
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + (type || 'info');
+        toast.innerHTML = '<div class="toast-body"><div class="toast-title">' + title + '</div><div class="toast-desc">' + message + '</div></div>';
+        container.appendChild(toast);
+        setTimeout(function () { toast.remove(); }, 4000);
+      }
+    })();
+  </script>
+
+</body>
+</html>

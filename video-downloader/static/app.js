@@ -1,9 +1,10 @@
 /* =========================================================================
-   SAI DIGITAL — Frontend download logic (memory-safe / queue-aware)
+   SAI DIGITAL — Frontend download logic (Cloudflare Pages — Backend API)
    ========================================================================= */
 
-const API_INFO = '/api/info';
-const API_DOWNLOAD = '/api/download-direct';
+const API_BASE = 'https://sai-digital.onrender.com';
+const API_INFO = API_BASE + '/api/info';
+const API_DOWNLOAD = API_BASE + '/api/download-direct';
 const FETCH_TIMEOUT_MS = 180000;   // 3 min (queue + download)
 const DOWNLOAD_TIMEOUT_MS = 240000; // 4 min
 
@@ -172,7 +173,7 @@ if (btnSubmit) {
 function renderResults(info) {
     if (!resultsSection) return;
 
-    if (resultThumb) resultThumb.src = info.thumbnail || '/static/img/placeholder.jpg';
+    if (resultThumb) resultThumb.src = info.thumbnail || '/static/img/placeholder.svg';
     if (resultTitle) resultTitle.textContent = info.title || 'Untitled';
     if (resultAuthor) resultAuthor.textContent = info.uploader || 'Unknown';
     if (resultPlatform) {
@@ -218,12 +219,11 @@ function renderFormats(formats) {
 
     const videos = formats.filter(f => f.has_video);
     const audios = formats.filter(f => f.has_audio && !f.has_video);
-    const audioFromVideo = formats.filter(f => f.has_video); // for mp3 extraction
+    const audioFromVideo = formats.filter(f => f.has_video);
 
     videoGrid.innerHTML = '';
     audioGrid.innerHTML = '';
 
-    // Video formats
     if (videos.length === 0) {
         videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
     } else {
@@ -233,7 +233,6 @@ function renderFormats(formats) {
         });
     }
 
-    // Audio formats (always offer generic MP3 from best video)
     const bestForAudio = audioFromVideo[0] || formats[0];
     if (bestForAudio) {
         audioGrid.appendChild(buildFormatCard(bestForAudio, 'audio', true));
@@ -242,7 +241,6 @@ function renderFormats(formats) {
         audioGrid.appendChild(buildFormatCard(f, 'audio', false));
     });
 
-    // Tabs default: video
     if (tabVideo && tabAudio) {
         tabVideo.classList.add('active');
         tabAudio.classList.remove('active');
@@ -329,8 +327,8 @@ async function triggerDownload(fmt, type) {
 
         const safeTitle = (currentInfo.title || 'video').replace(/[^\w\s-]/g, '').slice(0, 60).trim();
         a.download = type === 'audio'
-            ? `sai-digital-${safeTitle}.mp3`
-            : `sai-digital-${safeTitle}.mp4`;
+            ? `orbit-${safeTitle}.mp3`
+            : `orbit-${safeTitle}.mp4`;
 
         document.body.appendChild(a);
         a.click();
