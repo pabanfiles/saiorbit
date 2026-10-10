@@ -1,0 +1,21 @@
+name: Nightly Rebuild
+
+on:
+  schedule:
+    # Runs at 03:00 UTC every day (08:30 IST)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            echo "RENDER_DEPLOY_HOOK secret is not set. Skipping."
+            exit 0
+          fi
+          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" | head -c 200
+          echo ""
+          echo "Deploy hook triggered successfully."
