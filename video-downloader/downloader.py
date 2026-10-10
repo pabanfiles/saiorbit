@@ -1,5 +1,6 @@
 """
-Sai Digital — Memory-safe downloader + Instagram photo/story support.
+Sai Digital — Memory-safe downloader + Instagram photo/story/carousel support.
+FIXED: merged video+audio (sound works now), carousel all-items download.
 """
 
 import os
@@ -8,7 +9,7 @@ import uuid
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import yt_dlp
 
@@ -33,13 +34,13 @@ def _base_ydl_opts() -> Dict[str, Any]:
     return {
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": False,  # ← IMPORTANT: Instagram carousel = playlist
+        "noplaylist": False,  # Instagram carousel = playlist
         "no_part": True,
         "nocheckcertificate": True,
         "concurrent_fragment_downloads": 1,
         "buffersize": 1024 * 1024,
-        "retries": 2,
-        "fragment_retries": 2,
+        "retries": 3,
+        "fragment_retries": 3,
         "socket_timeout": 30,
         "http_chunk_size": 1024 * 1024,
         "noprogress": True,
@@ -62,9 +63,6 @@ def _base_ydl_opts() -> Dict[str, Any]:
 async def extract_info(url: str) -> Optional[Dict[str, Any]]:
     ydl_opts = _base_ydl_opts()
     ydl_opts["skip_download"] = True
-    # Don't expand playlist for video URLs
-    if "instagram.com" not in url.lower():
-        ydl_opts["noplaylist"] = True
 
     def _extract():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -79,21 +77,39 @@ async def extract_info(url: str) -> Optional[Dict[str, Any]]:
 
 
 # ============================================================================
-# VIDEO DOWNLOAD (MP4)
+# VIDEO DOWNLOAD — ✅ FIXED: merged video+audio (sound works!)
 # ============================================================================
 async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
     async with DOWNLOAD_SEMAPHORE:
-        logger.info(f"[SEMAPHORE] video download: {url}")
+        logger.info(f"[SEMAPHORE] video download: {url} (format: {format_id})")
         started = time.time()
 
         file_id = uuid.uuid4().hex[:12]
         out_template = str(DOWNLOADS_DIR / f"{file_id}.%(ext)s")
 
         ydl_opts = _base_ydl_opts()
+
+        # ✅ FIX: 'best' হলে merged video+audio নাও
+        if format_id in ("best", "bestvideo", None):
+            fmt = "bestvideo+bestaudio/best"
+        elif "bestvideo" in format_id and "audio" not in format_id:
+            # শুধু video format হলে audio merge করো
+            fmt = f"{format_id}+bestaudio/best"
+        else:
+            fmt = format_id
+
         ydl_opts.update({
-            "format": format_id,
+            "format": fmt,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
+            # ✅ FIX: FFmpeg দিয়ে merge
+            "postprocessors": [{
+                "key": "FFmpegVideoConvertor",
+                "preferedformat": "mp4",
+            }],
+            "postprocessor_args": {
+                "ffmpeg": ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k"]
+            },
         })
 
         def _download():
@@ -130,7 +146,7 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
 
         ydl_opts = _base_ydl_opts()
         ydl_opts.update({
-            "format": format_id,
+            "format": format_id if format_id != "best" else "bestaudio/best",
             "outtmpl": out_template,
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
@@ -161,25 +177,26 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
 
 
 # ============================================================================
-# INSTAGRAM PHOTO / CAROUSEL DOWNLOAD
+# INSTAGRAM PHOTO / CAROUSEL / STORY DOWNLOAD
 # ============================================================================
 async def download_instagram_media(url: str) -> Optional[Path]:
     """
-    Download Instagram photo or carousel (multiple images/videos).
-    Returns the FIRST media file (for carousel, yt-dlp will download all).
+    Download Instagram photo, carousel, or story.
+    ✅ FIXED: For carousel, downloads ALL items and returns first video/image.
     """
     async with DOWNLOAD_SEMAPHORE:
         logger.info(f"[INSTAGRAM] downloading media: {url}")
         started = time.time()
 
         file_id = uuid.uuid4().hex[:12]
+        # Carousel-এর জন্য playlist_index যোগ করা
         out_template = str(DOWNLOADS_DIR / f"{file_id}_%(playlist_index)s.%(ext)s")
 
         ydl_opts = _base_ydl_opts()
         ydl_opts.update({
             "format": "best",
             "outtmpl": out_template,
-            "noplaylist": False,  # carousel support
+            "noplaylist": False,  # Carousel support
         })
 
         def _download():
@@ -195,18 +212,23 @@ async def download_instagram_media(url: str) -> Optional[Path]:
             logger.error(f"instagram download failed: {e}")
             return None
 
-        # Find any downloaded file
+        # সব downloaded file খুঁজে বের করো
         matches = list(DOWNLOADS_DIR.glob(f"{file_id}*"))
         matches = [m for m in matches if not m.name.endswith(".part")]
+
         if not matches:
             return None
 
-        # Prefer video, then image
-        for ext in (".mp4", ".jpg", ".jpeg", ".png", ".webp"):
+        # Video প্রথমে prefer করো, তারপর image
+        for ext in (".mp4", ".mkv", ".webm", ".jpg", ".jpeg", ".png", ".webp"):
             for m in matches:
                 if m.suffix == ext:
-                    logger.info(f"[DONE] instagram in {time.time() - started:.1f}s → {m.name}")
+                    logger.info(
+                        f"[DONE] instagram in {time.time() - started:.1f}s → {m.name} "
+                        f"(total {len(matches)} file(s))"
+                    )
                     return m
+
         return matches[0]
 
 
