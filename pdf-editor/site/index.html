@@ -38,13 +38,13 @@ button:hover,.btn:hover{border-color:var(--ac)}button:disabled{opacity:.4;pointe
 #main{flex:1;overflow:auto;padding:16px}
 #wrap{position:relative;margin:0 auto;background:#fff;box-shadow:0 10px 40px #0004;border-radius:4px}
 canvas{display:block}
-.ov{position:absolute;touch-action:none;cursor:text;border-radius:2px}.ov:hover{background:#4f46e522;outline:1px solid #4f46e5aa}.ov.mod{outline:1px solid var(--ac)}.ov.nw{outline:1px dashed var(--ok);cursor:move}
+.ov{position:absolute;touch-action:none;cursor:text;border-radius:2px}.ov:hover{background:#4f46e514}.ov.mod{outline:0}.ov.nw{outline:0;cursor:move}.ov.nw:hover{outline:1px dashed var(--ok)}
 #set{display:none;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd);font-size:13px;gap:8px;align-items:center;flex-wrap:wrap}
 #set input{flex:1;min-width:200px;font:inherit;padding:6px 9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
 .chip{font-size:12px;border-radius:99px;padding:2px 10px;background:var(--warnbg);color:var(--warn)}.chip.on{background:#dcfce7;color:#166534}
 .spin{width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:s .8s linear infinite;display:none}@keyframes s{to{transform:rotate(360deg)}}
 footer{text-align:center;color:var(--mut);font-size:13px;padding:30px 5vw}
-.inl{position:absolute;z-index:5;border:1px solid var(--ac);padding:0 2px;outline:0;border-radius:2px;box-shadow:0 2px 10px #0004}#wrap.ann .ov{pointer-events:none}.ov.im:hover{outline:2px dashed #f59e0b;background:#f59e0b22}
+.inl{position:absolute;z-index:5;border:0;padding:0;margin:0;outline:0;box-shadow:0 1px 0 var(--ac)}#wrap.ann .ov{pointer-events:none}.ov.im:hover{outline:2px dashed #f59e0b;background:#f59e0b22}
 </style></head><body>
 <header class="top"><div class="logo">📝 PDF<b>Edit</b></div>
 <div style="display:flex;gap:8px"><a class="btn" href="tools.html" style="text-decoration:none">🧰 All tools</a><button id="openAnother" style="display:none">Open another PDF</button><button id="gear">⚙ Backend</button></div></header>
@@ -81,6 +81,7 @@ footer{text-align:center;color:var(--mut);font-size:13px;padding:30px 5vw}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script>
 const $=s=>document.querySelector(s),cv=$('#cv'),ctx=cv.getContext('2d'),wrap=$('#wrap');
+const Q=Math.min(2.5,Math.max(2,window.devicePixelRatio||1));
 const WURL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const ready=fetch(WURL).then(r=>r.text()).then(t=>{pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([t],{type:'text/javascript'}))}).catch(()=>{pdfjsLib.GlobalWorkerOptions.workerSrc=WURL});
 const S={file:null,pdf:null,pn:1,sc:1.3,spans:{},ed:{},boxes:[],ann:[],imgs:{},wd:{},org:[],pgp:false,mode:null,img:null,add:false,base:null,blob:null,task:null,tok:0};
@@ -108,8 +109,8 @@ async function load(f){
 // ---------- render
 async function show(){
  const tok=++S.tok;busy(1);
- try{const page=await S.pdf.getPage(S.pn),vp=page.getViewport({scale:S.sc});
- S.task&&S.task.cancel();cv.width=vp.width;cv.height=vp.height;wrap.style.width=vp.width+'px';wrap.style.height=vp.height+'px';
+ try{const page=await S.pdf.getPage(S.pn),vp=page.getViewport({scale:S.sc*Q});
+ S.task&&S.task.cancel();cv.width=vp.width;cv.height=vp.height;wrap.style.width=vp.width/Q+'px';wrap.style.height=vp.height/Q+'px';cv.style.width='100%';cv.style.height='100%';
  S.task=page.render({canvasContext:ctx,viewport:vp});await S.task.promise;if(tok!==S.tok)return;
  S.base=ctx.getImageData(0,0,cv.width,cv.height);
  if(!S.spans[S.pn])S.spans[S.pn]=await extract(page);
@@ -119,8 +120,8 @@ async function show(){
  $('#pg').textContent=S.pn+' / '+S.pdf.numPages;$('#zl').textContent=Math.round(S.sc/1.3*100)+'%';build();redraw()}
  catch(e){if(!/cancel/i.test(e.name+e.message))msg('Render failed: '+e.message,'e')}finally{if(tok===S.tok)busy(0)}}
 const pix=(x,y)=>{x=Math.min(cv.width-1,Math.max(0,x|0));y=Math.min(cv.height-1,Math.max(0,y|0));const i=(y*cv.width+x)*4,d=S.base.data;return[d[i],d[i+1],d[i+2]]};
-function bgOf(b){const k=S.sc,a=[pix(b[0]*k-1,b[1]*k),pix(b[2]*k+1,b[1]*k),pix(b[0]*k-1,b[3]*k),pix(b[2]*k+1,b[3]*k)];return[0,1,2].map(j=>Math.round(a.reduce((m,p)=>m+p[j],0)/4))}
-function colOf(b){const k=S.sc;let best=[0,0,0],bl=1e9;for(let y=b[1]*k|0;y<b[3]*k;y++)for(let x=b[0]*k|0;x<b[2]*k;x++){const p=pix(x,y),l=p[0]+p[1]+p[2];if(l<bl){bl=l;best=p}}return best}
+function bgOf(b){const k=S.sc*Q,a=[pix(b[0]*k-1,b[1]*k),pix(b[2]*k+1,b[1]*k),pix(b[0]*k-1,b[3]*k),pix(b[2]*k+1,b[3]*k)];return[0,1,2].map(j=>Math.round(a.reduce((m,p)=>m+p[j],0)/4))}
+function colOf(b){const k=S.sc*Q;let best=[0,0,0],bl=1e9;for(let y=b[1]*k|0;y<b[3]*k;y++)for(let x=b[0]*k|0;x<b[2]*k;x++){const p=pix(x,y),l=p[0]+p[1]+p[2];if(l<bl){bl=l;best=p}}return best}
 async function extract(page){
  const tc=await page.getTextContent();try{await page.getOperatorList()}catch(e){}
  const v1=page.getViewport({scale:1}),out=[];let n=0;
@@ -135,7 +136,7 @@ const rgbs=a=>`rgb(${a})`;
 function css(font,px){const n=font.toLowerCase(),b=/bold|black|heavy/.test(n)?'bold ':'',i=/italic|oblique/.test(n)?'italic ':'',
  f=/cour|mono/.test(n)?'monospace':(/times|serif|roman|georgia|garamond/.test(n)&&!/sans/.test(n))?'serif':'sans-serif';return`${i}${b}${px}px ${f}`}
 const isMod=s=>!!S.ed[s.id];
-function redraw(){ if(!S.base)return;ctx.putImageData(S.base,0,0);const k=S.sc;
+function redraw(){ if(!S.base)return;ctx.putImageData(S.base,0,0);const k=S.sc*Q;
  for(const s of S.spans[S.pn]||[]){const e=S.ed[s.id];if(!e)continue;
   ctx.fillStyle=rgbs(s.bg);ctx.fillRect(s.bb[0]*k,s.bb[1]*k,(s.bb[2]-s.bb[0])*k+1,(s.bb[3]-s.bb[1])*k);
   if(!e.text)continue;ctx.font=css(s.font,s.fs*k);ctx.fillStyle=rgbs(s.col);ctx.fillText(e.text,(s.x+e.dx)*k,(s.y+e.dy)*k)}
@@ -260,8 +261,9 @@ async function overlayPdf(list){const {PDFDocument,StandardFonts:F,rgb}=PDFLib,d
   if(!e.new_text)continue;const c=e.color;
   pg.drawText(e.new_text.replace(/[^\x20-\x7E\xA0-\xFF]/g,'?'),{x:e.origin[0],y:H-e.origin[1],size:e.size,font:await get(e.flags),color:rgb(((c>>16)&255)/255,((c>>8)&255)/255,(c&255)/255)})}
  return new Blob([await doc.save()],{type:'application/pdf'})}
+async function wake(){const t0=Date.now();for(let i=0;i<14;i++){try{const r=await fetch(backend+'/health');if(r.ok)return true}catch(e){}msg('Waking up the server… ('+Math.round((Date.now()-t0)/1000)+'s)','w');await new Promise(r=>setTimeout(r,5000))}return false}
 $('#save').onclick=async()=>{const list=edits();S.ann.filter(a=>a.type==='white').forEach(a=>list.push({page:a.pn-1,bbox:[a.x,a.y,a.x+a.w,a.y+a.h],origin:[a.x,a.y],new_text:'',font:'helv',size:12,color:0,flags:0,wipe:true,bg:[255,255,255]}));if(!list.length&&!S.ann.length&&!S.fd&&!orgCh())return msg('No changes to save yet.','w');
- busy(1);msg('');let lines=[],kind='o';
+ busy(1);msg('');let lines=[],kind='o';if(backend){await wake();ping()}
  try{let blob;
   if(backend){try{const fd=new FormData();fd.append('file',S.file);fd.append('edits',JSON.stringify(list));
    const r=await fetch(backend+'/api/pdf/edit',{method:'POST',body:fd});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.statusText);
