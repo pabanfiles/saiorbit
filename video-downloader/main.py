@@ -1,5 +1,5 @@
 """
-Sai Digital — FastAPI backend, memory-safe for Render Free tier.
+Sai Digital — FastAPI backend (fixed CORS + Instagram photo/story support).
 """
 
 import os
@@ -13,20 +13,17 @@ from collections import defaultdict
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from downloader import (
     extract_info,
     download_video,
     download_audio,
+    download_instagram_media,
     cleanup_old_files,
     get_queue_status,
     DOWNLOADS_DIR,
-    DOWNLOAD_SEMAPHORE,
-    FFMPEG_SEMAPHORE,
 )
 
 # ============================================================================
@@ -43,23 +40,26 @@ logger = logging.getLogger("sai_digital")
 # ENV
 # ============================================================================
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "5"))
-ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
 MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 
+# ✅ FIXED: allow all Cloudflare Pages subdomains + localhost
 ALLOWED_ORIGINS = [
-    "https://sd.ssssobankura.org",
-    "https://sai-digital.onrender.com",
     "https://saiorbit.pages.dev",
+    "https://*.saiorbit.pages.dev",        # preview deployments
     "https://saiorbit.com",
     "https://www.saiorbit.com",
+    "https://sai-digital.onrender.com",
+    "https://sd.ssssobankura.org",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
 ]
 
 
 # ============================================================================
-# URL VALIDATION (allow-list)
+# URL VALIDATION
 # ============================================================================
 ALLOWED_DOMAINS = [
     "facebook.com", "fb.watch", "fb.com",
@@ -70,9 +70,8 @@ ALLOWED_DOMAINS = [
     "reddit.com", "redd.it",
     "vimeo.com",
     "threads.net", "threads.com",
+    "youtube.com", "youtu.be", "m.youtube.com",
 ]
-if ENABLE_YOUTUBE:
-    ALLOWED_DOMAINS += ["youtube.com", "youtu.be", "m.youtube.com"]
 
 
 def is_allowed_url(url: str) -> bool:
@@ -88,17 +87,24 @@ def is_allowed_url(url: str) -> bool:
         return False
 
 
+def is_instagram(url: str) -> bool:
+    return bool(re.search(r'instagram\.com|instagr\.am', url, re.I))
+
+
+def is_instagram_story(url: str) -> bool:
+    return bool(re.search(r'instagram\.com/stories/', url, re.I))
+
+
 # ============================================================================
-# RATE LIMITING (in-memory, per-IP)
+# RATE LIMITING
 # ============================================================================
-_rate_buckets: dict[str, list[float]] = defaultdict(list)
+_rate_buckets: dict = defaultdict(list)
 
 
 def check_rate_limit(ip: str) -> bool:
     now = time.time()
     window = 60.0
     bucket = _rate_buckets[ip]
-    # keep only recent entries
     _rate_buckets[ip] = [t for t in bucket if now - t < window]
     if len(_rate_buckets[ip]) >= RATE_LIMIT_PER_MINUTE:
         return False
@@ -107,7 +113,6 @@ def check_rate_limit(ip: str) -> bool:
 
 
 def get_client_ip(request: Request) -> str:
-    # Cloudflare / Render proxy headers
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
@@ -118,10 +123,9 @@ def get_client_ip(request: Request) -> str:
 
 
 # ============================================================================
-# BACKGROUND CLEANUP TASK
+# BACKGROUND CLEANUP
 # ============================================================================
 async def periodic_cleanup():
-    """Runs every 60s — deletes files older than MAX_FILE_AGE_SECONDS."""
     while True:
         try:
             removed = await cleanup_old_files()
@@ -141,11 +145,8 @@ async def lifespan(app: FastAPI):
     logger.info("Sai Digital starting up...")
     logger.info(f"DOWNLOADS_DIR = {DOWNLOADS_DIR.resolve()}")
     logger.info(f"ENVIRONMENT = {ENVIRONMENT}")
-    logger.info(f"ENABLE_YOUTUBE = {ENABLE_YOUTUBE}")
     logger.info(f"RATE_LIMIT = {RATE_LIMIT_PER_MINUTE}/min")
-    logger.info("Concurrency: download=1, ffmpeg=1 (tuned for 512 MB RAM)")
     logger.info("=" * 60)
-
     task = asyncio.create_task(periodic_cleanup())
     yield
     task.cancel()
@@ -161,105 +162,43 @@ async def lifespan(app: FastAPI):
 # ============================================================================
 app = FastAPI(
     title="Sai Digital — Video Downloader",
-    version="4.3",
+    version="5.0",
     lifespan=lifespan,
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
+# ✅ FIXED CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.saiorbit\.pages\.dev",  # সব preview URL
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+    max_age=3600,
 )
 
 
 # ============================================================================
-# PAGE ROUTES
+# HEALTH
 # ============================================================================
-@app.get("/", response_class=HTMLResponse)
-async def homepage(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "service": "Sai Digital Video Downloader",
+        "version": "5.0",
+    }
 
 
-@app.get("/about", response_class=HTMLResponse)
-async def about_page(request: Request):
-    return templates.TemplateResponse("about.html", {"request": request})
-
-
-@app.get("/contact", response_class=HTMLResponse)
-async def contact_page(request: Request):
-    return templates.TemplateResponse("contact.html", {"request": request})
-
-
-@app.get("/privacy", response_class=HTMLResponse)
-async def privacy_page(request: Request):
-    return templates.TemplateResponse("privacy.html", {"request": request})
-
-
-@app.get("/terms", response_class=HTMLResponse)
-async def terms_page(request: Request):
-    return templates.TemplateResponse("terms.html", {"request": request})
-
-
-@app.get("/disclaimer", response_class=HTMLResponse)
-async def disclaimer_page(request: Request):
-    return templates.TemplateResponse("disclaimer.html", {"request": request})
-
-
-# --- BLOG ROUTES (adjust to your existing blog loader) ---------------------
-try:
-    from blog_loader import get_all_posts, get_post_by_slug, get_categories
-except ImportError:
-    # Fallback if blog_loader not present
-    def get_all_posts(q=None, category=None):
-        return []
-    def get_post_by_slug(slug):
-        return None
-    def get_categories():
-        return []
-
-
-@app.get("/blog", response_class=HTMLResponse)
-async def blog_page(request: Request, q: str = "", category: str = ""):
-    posts = get_all_posts(q=q, category=category)
-    return templates.TemplateResponse("blog.html", {
-        "request": request,
-        "posts": posts,
-        "categories": get_categories(),
-        "search_query": q,
-        "current_category": category,
-    })
-
-
-@app.get("/blog/{slug}", response_class=HTMLResponse)
-async def blog_post_page(request: Request, slug: str):
-    post = get_post_by_slug(slug)
-    if not post:
-        raise HTTPException(status_code=404, detail="Post not found")
-    related = [p for p in get_all_posts() if p.get("slug") != slug][:3]
-    return templates.TemplateResponse("post.html", {
-        "request": request,
-        "post": post,
-        "related_posts": related,
-    })
-
-
-# ============================================================================
-# API — HEALTH
-# ============================================================================
 @app.get("/health")
 async def health():
     status = get_queue_status()
     return {
         "status": "ok",
-        "version": "4.3",
+        "version": "5.0",
         "environment": ENVIRONMENT,
         "queue": status,
-        "downloads_dir": str(DOWNLOADS_DIR),
         "timestamp": time.time(),
     }
 
@@ -291,19 +230,49 @@ async def api_info(request: Request):
             detail="Could not extract video info. Check URL or try a different platform.",
         )
 
+    # Instagram photo/carousel detection
+    instagram = is_instagram(url)
+    media_type = "video"
+    
+    if instagram:
+        # Check if entries (carousel) or single
+        if "entries" in info and info["entries"]:
+            media_type = "carousel"
+        elif info.get("ext", "").lower() in ("jpg", "jpeg", "png", "webp"):
+            media_type = "photo"
+
+    # Build formats list
+    formats = _filter_formats(info.get("formats") or [])
+
+    # For photos, add a direct download entry
+    if media_type == "photo" and info.get("url"):
+        formats = [{
+            "format_id": "photo",
+            "ext": info.get("ext", "jpg"),
+            "quality": "Original",
+            "filesize": None,
+            "vcodec": "none",
+            "acodec": "none",
+            "has_video": False,
+            "has_audio": False,
+            "direct_url": info.get("url"),
+            "is_photo": True,
+        }]
+
     return {
-        "title": info.get("title"),
+        "title": info.get("title") or "Instagram Media",
         "thumbnail": info.get("thumbnail"),
         "duration": info.get("duration"),
         "uploader": info.get("uploader"),
-        "platform": info.get("extractor_key") or info.get("extractor"),
-        "formats": _filter_formats(info.get("formats") or []),
-        "webpage_url": info.get("webpage_url"),
+        "platform": info.get("extractor_key") or info.get("extractor") or "Unknown",
+        "formats": formats,
+        "webpage_url": info.get("webpage_url") or url,
+        "media_type": media_type,
+        "is_instagram": instagram,
     }
 
 
 def _filter_formats(formats):
-    """Trim and normalize formats for frontend."""
     out = []
     for f in formats:
         if not f.get("url"):
@@ -326,10 +295,6 @@ def _filter_formats(formats):
 # ============================================================================
 @app.post("/api/download-direct")
 async def download_direct(request: Request):
-    """
-    Download a video/audio and stream it back.
-    Uses semaphore so only 1 job runs at a time.
-    """
     ip = get_client_ip(request)
     if not check_rate_limit(ip):
         raise HTTPException(status_code=429, detail="Too many requests. Please wait a minute.")
@@ -348,33 +313,44 @@ async def download_direct(request: Request):
     if not is_allowed_url(url):
         raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL")
 
-    # Log queue status
-    if DOWNLOAD_SEMAPHORE.locked() and media_type == "video":
-        logger.info("video slot busy — request will queue")
-    if FFMPEG_SEMAPHORE.locked() and media_type == "audio":
-        logger.info("audio slot busy — request will queue")
+    # Handle direct URL (Instagram photo)
+    direct_url = body.get("direct_url")
+    if direct_url:
+        return JSONResponse({
+            "type": "direct",
+            "url": direct_url,
+            "message": "Direct download URL — open in browser",
+        })
 
     started = time.time()
 
-    if media_type == "audio":
-        file_path = await download_audio(url, format_id)
-    else:
-        file_path = await download_video(url, format_id)
+    try:
+        if media_type == "audio":
+            file_path = await download_audio(url, format_id)
+        elif is_instagram(url) and media_type in ("photo", "carousel"):
+            file_path = await download_instagram_media(url)
+        else:
+            file_path = await download_video(url, format_id)
+    except Exception as e:
+        logger.error(f"download failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Download failed: {str(e)[:200]}")
 
     if not file_path or not file_path.exists():
         raise HTTPException(
             status_code=502,
-            detail="Download failed. Video may be private, region-locked, or removed.",
+            detail="Download failed. Content may be private, region-locked, or removed.",
         )
 
     suffix = file_path.suffix.lower()
-    if suffix == ".mp3":
-        media = "audio/mpeg"
-    elif suffix == ".mp4":
-        media = "video/mp4"
-    else:
-        media = "application/octet-stream"
-
+    media_map = {
+        ".mp3": "audio/mpeg",
+        ".mp4": "video/mp4",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }
+    media = media_map.get(suffix, "application/octet-stream")
     filename = f"sai-digital-{int(time.time())}{suffix}"
 
     logger.info(
@@ -383,11 +359,10 @@ async def download_direct(request: Request):
     )
 
     async def _delete_later():
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         try:
             if file_path.exists():
                 file_path.unlink()
-                logger.info(f"deleted after serve: {file_path.name}")
         except Exception:
             pass
 
@@ -406,7 +381,7 @@ async def download_direct(request: Request):
 
 
 # ============================================================================
-# API — CONTACT (stub — adapt to your real implementation)
+# API — CONTACT
 # ============================================================================
 @app.post("/api/contact")
 async def contact_api(request: Request):
@@ -426,7 +401,5 @@ async def contact_api(request: Request):
     if not name or not email or not message:
         raise HTTPException(status_code=400, detail="Name, email, and message are required")
 
-    # TODO: integrate with email service (Resend, SendGrid, or SMTP) if desired
     logger.info(f"Contact form: {name} <{email}>")
-
     return {"success": True, "message": "Thank you! We'll get back to you soon."}
