@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDFEdit – All PDF Tools</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧰</text></svg>">
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--tx:#0f172a;--mut:#64748b;--bd:#e2e8f0;--ac:#4f46e5;--ac2:#7c3aed;--acbg:#e0e7ff;--ok:#16a34a;--err:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#151b2e;--tx:#e8ecf5;--mut:#94a3b8;--bd:#273049;--acbg:#26307a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 5vw}
+.logo{font-weight:800;font-size:20px;color:inherit;text-decoration:none}.logo b{background:linear-gradient(90deg,var(--ac),var(--ac2));-webkit-background-clip:text;color:transparent}
+h1{text-align:center;font-size:clamp(28px,5vw,44px);letter-spacing:-1px;margin:3vh 5vw 6px}.sub{text-align:center;color:var(--mut);margin:0 5vw 26px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;max-width:1040px;margin:0 auto;padding:0 5vw 40px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px;cursor:pointer;text-decoration:none;color:inherit;transition:.15s;display:block}
+.c:hover{border-color:var(--ac);transform:translateY(-2px)}.c .i{font-size:28px}.c h3{margin:6px 0 2px;font-size:16px}.c p{margin:0;color:var(--mut);font-size:13px}
+.c.off{opacity:.55;cursor:not-allowed}.c.off:hover{transform:none;border-color:var(--bd)}.tag{font-size:10px;background:var(--acbg);border-radius:99px;padding:1px 8px;margin-left:4px}
+#tool{display:none;max-width:720px;margin:0 auto;padding:0 5vw 50px}
+button,.btn{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-flex;gap:6px;align-items:center}
+.pri{background:linear-gradient(90deg,var(--ac),var(--ac2));color:#fff;border:0}button:disabled{opacity:.45;pointer-events:none}
+#dz{border:2px dashed var(--bd);background:var(--card);border-radius:16px;padding:32px 16px;text-align:center;cursor:pointer;margin:14px 0}#dz.over,#dz:hover{border-color:var(--ac);background:var(--acbg)}
+.fl{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:14px}.fl span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fl button{padding:2px 8px}
+#opts{display:grid;gap:10px;margin:14px 0}#opts label{display:grid;gap:3px;font-size:13px;color:var(--mut)}
+#opts input,#opts select{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx)}
+#st{margin:12px 0;font-size:14px}.err{color:var(--err)}.note{color:var(--mut);font-size:13px}
+.rs{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--ok);border-radius:10px;padding:8px 12px;margin-bottom:6px}.rs span{flex:1;overflow:hidden;text-overflow:ellipsis}
+</style></head><body>
+<header><a class="logo" href="tools.html">🧰 PDF<b>Edit</b></a><a class="btn" href="index.html">✏️ Edit PDF text</a></header>
+<div id="home"><h1>All PDF tools in one place</h1><p class="sub">Free · files never leave your browser (except tools marked server)</p><p class="sub"><input id="burl" placeholder="Backend URL (for Protect / Unlock / Pro Compress)" style="padding:7px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);width:min(380px,80vw)"> <button id="bsv">Save</button></p><div id="grid"></div></div>
+<div id="tool"><button id="back">← All tools</button><h2 id="tt" style="margin:14px 0 2px"></h2><div class="note" id="td"></div>
+<div id="dz"></div><input id="fi" type="file" hidden><div id="fl"></div><div id="opts"></div>
+<button id="run" class="pri" disabled>Run</button><div id="st"></div><div id="res"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),{PDFDocument,StandardFonts,rgb,degrees}=PDFLib;
+const WURL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const ready=fetch(WURL).then(r=>r.text()).then(t=>{pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([t],{type:'text/javascript'}))}).catch(()=>{pdfjsLib.GlobalWorkerOptions.workerSrc=WURL});
+const buf=f=>f.arrayBuffer(),pdf=b=>new Blob([b],{type:'application/pdf'}),st=(t,c)=>{$('#st').innerHTML=c?`<span class="${c}"></span>`:'';(c?$('#st span'):$('#st')).textContent=t};
+const loadPdf=async f=>{await ready;return pdfjsLib.getDocument({data:new Uint8Array(await buf(f))}).promise};
+const canv=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);return[c,x]};
+const toBlob=(c,m,q)=>new Promise(r=>c.toBlob(r,m,q));
+const ranges=(s,n)=>s.split(',').map(x=>x.trim()).filter(Boolean).map(p=>{const[a,b]=p.split('-').map(Number),lo=Math.max(1,a),hi=Math.min(n,b||a),r=[];for(let i=lo;i<=hi;i++)r.push(i-1);return r}).filter(r=>r.length);
+const latin=s=>{if(/[^\x20-\x7E\xA0-\xFF]/.test(s))throw new Error('This tool supports Latin characters only (no Bengali/Hindi).')};
+const sz=n=>n>1e6?(n/1e6).toFixed(2)+' MB':Math.round(n/1e3)+' KB';
+const P='application/pdf';
+const T={
+merge:{i:'🔗',t:'Merge PDF',d:'Combine several PDFs into one. Use ↑↓ to set order.',acc:P,multi:1,min:2,run:async F=>{const o=await PDFDocument.create();for(const f of F){const d=await PDFDocument.load(await buf(f));(await o.copyPages(d,d.getPageIndices())).forEach(p=>o.addPage(p))}return[{name:'merged.pdf',blob:pdf(await o.save())}]}},
+split:{i:'✂️',t:'Split PDF',d:'Leave empty = one file per page. Or ranges like 1-3,5,7-9 (each range = one file).',acc:P,opts:'<label>Page ranges<input name="r" placeholder="1-3,5,7-9"></label>',run:async(F,o)=>{const s=await PDFDocument.load(await buf(F[0])),n=s.getPageCount(),rs=o.r.trim()?ranges(o.r,n):s.getPageIndices().map(i=>[i]),out=[];let k=1;if(!rs.length)throw new Error('No valid pages in range.');for(const r of rs){const d=await PDFDocument.create();(await d.copyPages(s,r)).forEach(p=>d.addPage(p));out.push({name:`split-${k++}.pdf`,blob:pdf(await d.save())})}return out}},
+rotate:{i:'🔄',t:'Rotate PDF',d:'Rotate all pages, or only the pages you list.',acc:P,opts:'<label>Angle<select name="a"><option value="90">90° right</option><option value="180">180°</option><option value="270">90° left</option></select></label><label>Pages (empty = all)<input name="r" placeholder="1,3-5"></label>',run:async(F,o)=>{const d=await PDFDocument.load(await buf(F[0])),idx=o.r.trim()?ranges(o.r,d.getPageCount()).flat():d.getPageIndices();idx.forEach(i=>{const p=d.getPage(i);p.setRotation(degrees((p.getRotation().angle+ +o.a)%360))});return[{name:'rotated.pdf',blob:pdf(await d.save())}]}},
+del:{i:'🗑️',t:'Delete pages',d:'Remove pages you don’t need.',acc:P,opts:'<label>Pages to delete<input name="r" placeholder="2,4-6"></label>',run:async(F,o)=>{const d=await PDFDocument.load(await buf(F[0])),rm=[...new Set(ranges(o.r,d.getPageCount()).flat())].sort((a,b)=>b-a);if(!rm.length)throw new Error('Enter pages to delete.');if(rm.length>=d.getPageCount())throw new Error('Cannot delete every page.');rm.forEach(i=>d.removePage(i));return[{name:'edited.pdf',blob:pdf(await d.save())}]}},
+img2pdf:{i:'🖼️',t:'Images → PDF',d:'JPG, PNG or WebP images into one PDF. Use ↑↓ to set order.',acc:'image/*',multi:1,run:async F=>{const d=await PDFDocument.create();for(const f of F){const bm=await createImageBitmap(f),[c,x]=canv(bm.width,bm.height);x.drawImage(bm,0,0);const im=await d.embedJpg(await(await toBlob(c,'image/jpeg',.92)).arrayBuffer()),k=Math.min(1,842/Math.max(im.width,im.height)),p=d.addPage([im.width*k,im.height*k]);p.drawImage(im,{x:0,y:0,width:im.width*k,height:im.height*k})}return[{name:'images.pdf',blob:pdf(await d.save())}]}},
+pdf2img:{i:'📷',t:'PDF → Images',d:'Every page becomes an image.',acc:P,opts:'<label>Format<select name="f"><option value="jpg">JPG</option><option value="png">PNG</option></select></label><label>Quality<select name="s"><option value="1.5">Normal</option><option value="2.5">High</option></select></label>',run:async(F,o)=>{const doc=await loadPdf(F[0]),out=[];for(let i=1;i<=doc.numPages;i++){st(`Page ${i} / ${doc.numPages}…`);const pg=await doc.getPage(i),v=pg.getViewport({scale:+o.s}),[c,x]=canv(v.width,v.height);await pg.render({canvasContext:x,viewport:v}).promise;out.push({name:`page-${i}.${o.f}`,blob:await toBlob(c,o.f==='png'?'image/png':'image/jpeg',.92)})}return out}},
+wm:{i:'💧',t:'Watermark',d:'Diagonal text watermark on every page.',acc:P,opts:'<label>Text<input name="t" value="CONFIDENTIAL"></label><label>Size<input name="z" type="number" value="60"></label><label>Opacity (0.1–1)<input name="o" type="number" step="0.1" value="0.3"></label>',run:async(F,o)=>{latin(o.t);const d=await PDFDocument.load(await buf(F[0])),f=await d.embedFont(StandardFonts.HelveticaBold),z=+o.z,a=Math.PI/4;for(const p of d.getPages()){const{width:w,height:h}=p.getSize(),tw=f.widthOfTextAtSize(o.t,z);p.drawText(o.t,{x:w/2-tw/2*Math.cos(a)+z*.35*Math.sin(a),y:h/2-tw/2*Math.sin(a)-z*.35*Math.cos(a),size:z,font:f,color:rgb(.5,.5,.5),opacity:+o.o,rotate:degrees(45)})}return[{name:'watermarked.pdf',blob:pdf(await d.save())}]}},
+num:{i:'🔢',t:'Page numbers',d:'Adds “1 / N” at the bottom center.',acc:P,run:async F=>{const d=await PDFDocument.load(await buf(F[0])),f=await d.embedFont(StandardFonts.Helvetica),n=d.getPageCount();d.getPages().forEach((p,i)=>{const t=`${i+1} / ${n}`,w=f.widthOfTextAtSize(t,10);p.drawText(t,{x:(p.getWidth()-w)/2,y:20,size:10,font:f,color:rgb(.2,.2,.2)})});return[{name:'numbered.pdf',blob:pdf(await d.save())}]}},
+txt:{i:'📝',t:'PDF → Text',d:'Extract all text into a .txt file (Bengali works too).',acc:P,run:async F=>{const doc=await loadPdf(F[0]);let t='';for(let i=1;i<=doc.numPages;i++){const c=await(await doc.getPage(i)).getTextContent();t+=`--- Page ${i} ---\n`+c.items.map(x=>x.str+(x.hasEOL?'\n':'')).join('')+'\n\n'}return[{name:'text.txt',blob:new Blob([t],{type:'text/plain'})}]}},
+comp:{i:'📉',t:'Compress PDF',d:'Turns pages into compressed images. Great for scanned/photo PDFs. Text becomes non-selectable.',acc:P,opts:'<label>Level<select name="l"><option value="1.5,.6">Balanced</option><option value="1.2,.45">Strong</option><option value="2,.8">Light</option></select></label>',run:async(F,o)=>{const[s,q]=o.l.split(',').map(Number),src=await loadPdf(F[0]),d=await PDFDocument.create();for(let i=1;i<=src.numPages;i++){st(`Page ${i} / ${src.numPages}…`);const pg=await src.getPage(i),v1=pg.getViewport({scale:1}),v=pg.getViewport({scale:s}),[c,x]=canv(v.width,v.height);await pg.render({canvasContext:x,viewport:v}).promise;const im=await d.embedJpg(await(await toBlob(c,'image/jpeg',q)).arrayBuffer());d.addPage([v1.width,v1.height]).drawImage(im,{x:0,y:0,width:v1.width,height:v1.height})}return[{name:'compressed.pdf',blob:pdf(await d.save())}]}}
+};
+const be=()=>{let u='';try{u=localStorage.getItem('burl')||''}catch(e){}if(!u)throw new Error('Set your backend URL first (box at the top of this page).');return u.replace(/\/$/,'')};
+const srv=async(path,f,x)=>{const fd=new FormData();fd.append('file',f);for(const k in x)fd.append(k,x[k]);let r;try{r=await fetch(be()+path,{method:'POST',body:fd})}catch(e){if(/backend URL/.test(e.message))throw e;throw new Error('Cannot reach the backend.')}if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.statusText);return r.blob()};
+Object.assign(T,{
+protect:{i:'🔒',t:'Protect PDF',d:'Add a password (AES-256). Server tool.',acc:P,opts:'<label>Password<input name="p" type="password"></label>',run:async(F,o)=>{if(!o.p)throw new Error('Enter a password.');return[{name:'protected.pdf',blob:await srv('/api/pdf/protect',F[0],{password:o.p})}]}},
+unlock:{i:'🔓',t:'Unlock PDF',d:'Remove a password. Server tool.',acc:P,opts:'<label>Current password<input name="p" type="password"></label>',run:async(F,o)=>[{name:'unlocked.pdf',blob:await srv('/api/pdf/unlock',F[0],{password:o.p})}]},
+compp:{i:'🗜️',t:'Compress (Pro)',d:'Keeps text selectable, recompresses images. Server tool.',acc:P,opts:'<label>Level<select name="l"><option value="60,110">Balanced</option><option value="40,80">Strong</option><option value="80,150">Light</option></select></label>',run:async(F,o)=>{const[q,d]=o.l.split(',');return[{name:'compressed.pdf',blob:await srv('/api/pdf/compress',F[0],{quality:q,dpi:d})}]}}});
+const bu=$('#burl');try{bu.value=localStorage.getItem('burl')||''}catch(e){}$('#bsv').onclick=()=>{try{localStorage.setItem('burl',bu.value.trim().replace(/\/$/,''))}catch(e){}$('#bsv').textContent='Saved ✓'};
+Object.assign(T,{
+ocr:{i:'🔍',t:'OCR (searchable PDF)',d:'Scanned PDF to searchable PDF plus text. First run downloads language data.',acc:P,opts:'<label>Language<select name="l"><option value="eng">English</option><option value="ben">Bengali</option><option value="hin">Hindi</option><option value="eng+ben">English + Bengali</option></select></label>',run:async(F,o)=>{if(!window.Tesseract)throw new Error('OCR library failed to load (check your internet connection).');const doc=await loadPdf(F[0]),out=await PDFDocument.create(),w=await Tesseract.createWorker(o.l);let txt='';try{for(let i=1;i<=doc.numPages;i++){st(`OCR page ${i} / ${doc.numPages}…`);const pg=await doc.getPage(i),v=pg.getViewport({scale:2}),[c,x]=canv(v.width,v.height);await pg.render({canvasContext:x,viewport:v}).promise;const{data}=await w.recognize(c,{},{pdf:true});txt+=`--- Page ${i} ---\n`+data.text+'\n';const pd=await PDFDocument.load(new Uint8Array(data.pdf));(await out.copyPages(pd,[0])).forEach(p=>out.addPage(p))}}finally{await w.terminate()}return[{name:'ocr.pdf',blob:pdf(await out.save())},{name:'ocr.txt',blob:new Blob([txt],{type:'text/plain'})}]}},
+pdf2docx:{i:'📄',t:'PDF → Word',d:'Editable .docx that keeps the layout. Server tool.',acc:P,run:async F=>[{name:F[0].name.replace(/\.pdf$/i,'')+'.docx',blob:await srv('/api/convert/pdf-to-docx',F[0],{})}]},
+pdf2xlsx:{i:'📊',t:'PDF → Excel',d:'Tables to .xlsx, one sheet per page. Server tool.',acc:P,run:async F=>[{name:F[0].name.replace(/\.pdf$/i,'')+'.xlsx',blob:await srv('/api/convert/pdf-to-xlsx',F[0],{})}]},
+office2pdf:{i:'📥',t:'Word / Excel / PPT → PDF',d:'Office files to PDF. Server tool (needs LibreOffice, see Dockerfile).',acc:'.doc,.docx,.odt,.rtf,.xls,.xlsx,.ppt,.pptx',ext:'docx?|odt|rtf|xlsx?|pptx?',run:async F=>[{name:F[0].name.replace(/\.[^.]+$/,'')+'.pdf',blob:await srv('/api/convert/office-to-pdf',F[0],{})}]}});
+const OFF=[];
+$('#grid').innerHTML='<a class="c" href="index.html"><div class="i">✏️</div><h3>Edit PDF text</h3><p>Change text with live preview</p></a>'+Object.entries(T).map(([k,v])=>`<div class="c" data-k="${k}"><div class="i">${v.i}</div><h3>${v.t}</h3><p>${v.d.split('.')[0]}</p></div>`).join('')+OFF.map(o=>`<div class="c off"><div class="i">${o[0]}</div><h3>${o[1]}<span class="tag">backend</span></h3><p>Needs the server version</p></div>`).join('');
+let tool=null,files=[];
+$('#grid').onclick=e=>{const c=e.target.closest('[data-k]');if(c)open(c.dataset.k)};
+function open(k){tool=T[k];files=[];$('#home').style.display='none';$('#tool').style.display='block';$('#tt').textContent=tool.i+' '+tool.t;$('#td').textContent=tool.d;$('#opts').innerHTML=tool.opts||'';
+ $('#dz').textContent=tool.multi?'Click or drop files here':'Click or drop a file here';$('#fi').accept=tool.acc;$('#fi').multiple=!!tool.multi;$('#res').innerHTML='';st('');list();scrollTo(0,0)}
+$('#back').onclick=()=>{$('#tool').style.display='none';$('#home').style.display='block'};
+const dz=$('#dz');dz.onclick=()=>$('#fi').click();
+$('#fi').onchange=e=>{add([...e.target.files]);e.target.value=''};
+['dragover','dragenter'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('over')}));
+['dragleave','drop'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove('over')}));
+dz.addEventListener('drop',e=>add([...e.dataTransfer.files]));
+function add(a){const ok=a.filter(f=>tool.ext?new RegExp('\\.('+tool.ext+')$','i').test(f.name):tool.acc==='image/*'?f.type.startsWith('image/'):/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name));
+ if(ok.length<a.length)st('Some files were skipped (wrong type).','err');else st('');files=tool.multi?files.concat(ok):ok.slice(0,1);$('#res').innerHTML='';list()}
+function list(){const L=$('#fl');L.innerHTML='';files.forEach((f,i)=>{const d=document.createElement('div');d.className='fl';const s=document.createElement('span');s.textContent=`${f.name} · ${sz(f.size)}`;d.append(s);
+ if(tool.multi)[['↑',-1],['↓',1]].forEach(([t,m])=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>{const j=i+m;if(j<0||j>=files.length)return;[files[i],files[j]]=[files[j],files[i]];list()};d.append(b)});
+ const x=document.createElement('button');x.textContent='✕';x.onclick=()=>{files.splice(i,1);list()};d.append(x);L.append(d)});
+ $('#run').disabled=files.length<(tool.min||1)}
+$('#run').onclick=async()=>{const o={};$('#opts').querySelectorAll('[name]').forEach(e=>o[e.name]=e.value);$('#run').disabled=true;$('#res').innerHTML='';st('Working…');
+ try{const t0=files.reduce((s,f)=>s+f.size,0),out=await tool.run(files,o);st('');const R=$('#res');
+  out.forEach(r=>{const url=URL.createObjectURL(r.blob),d=document.createElement('div');d.className='rs';const s=document.createElement('span');s.textContent=`${r.name} · ${sz(r.blob.size)}`;const a=document.createElement('a');a.className='btn';a.href=url;a.download=r.name;a.textContent='⬇ Download';d.append(s,a);R.append(d)});
+  if(out.length===1&&(tool===T.comp||tool===T.compp))st(`${sz(t0)} → ${sz(out[0].blob.size)}`+(out[0].blob.size>=t0?' (no gain: this PDF is already small or text-based)':''));
+  if(out.length>1){const b=document.createElement('button');b.className='pri';b.textContent='⬇ Download all (ZIP)';b.onclick=async()=>{const z=new JSZip();out.forEach(r=>z.file(r.name,r.blob));const u=URL.createObjectURL(await z.generateAsync({type:'blob'})),a=document.createElement('a');a.href=u;a.download='pdf-tools.zip';a.click()};R.append(b)}
+ }catch(e){st('Failed: '+e.message+(/encrypt|password/i.test(e.message)?'':' (is the PDF password-protected or damaged?)'),'err')}finally{list()}};
+</script></body></html>

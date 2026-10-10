@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pymupdf
+slowapi
+uharfbuzz
+fonttools
+pdf2docx
+pdfplumber
+openpyxl
