@@ -1,14 +1,13 @@
 /* =========================================================================
-   SAI DIGITAL — Frontend download logic (Cloudflare Pages — Backend API)
+   SAI DIGITAL — Frontend logic (fixed fetch errors + Instagram support)
    ========================================================================= */
 
 const API_BASE = 'https://sai-digital.onrender.com';
 const API_INFO = API_BASE + '/api/info';
 const API_DOWNLOAD = API_BASE + '/api/download-direct';
-const FETCH_TIMEOUT_MS = 180000;   // 3 min (queue + download)
-const DOWNLOAD_TIMEOUT_MS = 240000; // 4 min
+const FETCH_TIMEOUT_MS = 180000;
+const DOWNLOAD_TIMEOUT_MS = 240000;
 
-// ---- DOM refs (with safe lookups) ---------------------------------------
 const $ = (id) => document.getElementById(id);
 
 const urlInput = $('video-url-input');
@@ -16,17 +15,14 @@ const btnPaste = $('btn-paste');
 const btnSubmit = $('btn-submit');
 const platformChip = $('platform-chip');
 const platformChipName = $('platform-chip-name');
-
 const loadingState = $('loading-state');
 const loadingText = $('loading-status-text');
-
 const resultsSection = $('results-section');
 const resultThumb = $('result-thumbnail');
 const resultTitle = $('result-title');
 const resultDuration = $('result-duration');
 const resultPlatform = $('result-platform');
 const resultAuthor = $('result-author');
-
 const tabVideo = $('tab-video');
 const tabAudio = $('tab-audio');
 const videoGrid = $('video-formats-grid');
@@ -44,12 +40,11 @@ const PLATFORM_MAP = [
     { name: 'Reddit',    re: /(reddit\.com|redd\.it)/i,           color: '#ff4500' },
     { name: 'Vimeo',     re: /vimeo\.com/i,                       color: '#1ab7ea' },
     { name: 'Threads',   re: /(threads\.net|threads\.com)/i,      color: '#ffffff' },
+    { name: 'YouTube',   re: /(youtube\.com|youtu\.be)/i,         color: '#ff0000' },
 ];
 
 function detectPlatform(url) {
-    for (const p of PLATFORM_MAP) {
-        if (p.re.test(url)) return p;
-    }
+    for (const p of PLATFORM_MAP) if (p.re.test(url)) return p;
     return null;
 }
 
@@ -99,19 +94,17 @@ function showToast(title, message, type = 'info') {
     setTimeout(() => toast.remove(), 4500);
 }
 
-// ---- Loading state ------------------------------------------------------
 function showLoading(text) {
     if (loadingState) {
         loadingState.style.display = 'flex';
         if (loadingText) loadingText.textContent = text;
     }
 }
-
 function hideLoading() {
     if (loadingState) loadingState.style.display = 'none';
 }
 
-// ---- Fetch with timeout -------------------------------------------------
+// ---- Fetch with timeout + better errors ---------------------------------
 async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -122,7 +115,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
     }
 }
 
-// ---- Submit — Fetch video info -----------------------------------------
+// ---- Submit -------------------------------------------------------------
 if (btnSubmit) {
     btnSubmit.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -132,7 +125,7 @@ if (btnSubmit) {
             return;
         }
         if (!detectPlatform(url)) {
-            showToast('Unsupported Platform', 'This platform is not supported.', 'error');
+            showToast('Unsupported Platform', 'This platform is not supported yet.', 'error');
             return;
         }
 
@@ -147,7 +140,12 @@ if (btnSubmit) {
                 body: JSON.stringify({ url }),
             }, FETCH_TIMEOUT_MS);
 
-            const data = await res.json();
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error('Server returned invalid response. Try again.');
+            }
 
             if (!res.ok) {
                 throw new Error(data.detail || 'Could not fetch video info.');
@@ -157,11 +155,16 @@ if (btnSubmit) {
             renderResults(data);
 
         } catch (err) {
+            console.error('Fetch error:', err);
+            let msg = 'Failed to fetch. ';
             if (err.name === 'AbortError') {
-                showToast('Timeout', 'Server took too long. Please try again.', 'error');
+                msg = 'Server took too long. Please try again.';
+            } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                msg = 'Cannot reach server. Backend may be starting up — please wait 30s and retry.';
             } else {
-                showToast('Error', err.message || 'Failed to fetch info.', 'error');
+                msg = err.message || 'Failed to fetch info.';
             }
+            showToast('Error', msg, 'error');
         } finally {
             hideLoading();
             btnSubmit.disabled = false;
@@ -173,7 +176,7 @@ if (btnSubmit) {
 function renderResults(info) {
     if (!resultsSection) return;
 
-    if (resultThumb) resultThumb.src = info.thumbnail || '/static/img/placeholder.svg';
+    if (resultThumb) resultThumb.src = info.thumbnail || 'static/img/placeholder.svg';
     if (resultTitle) resultTitle.textContent = info.title || 'Untitled';
     if (resultAuthor) resultAuthor.textContent = info.uploader || 'Unknown';
     if (resultPlatform) {
@@ -189,7 +192,7 @@ function renderResults(info) {
         resultDuration.textContent = formatDuration(info.duration);
     }
 
-    renderFormats(info.formats || []);
+    renderFormats(info.formats || [], info.media_type || 'video');
 
     resultsSection.style.display = 'block';
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -206,23 +209,42 @@ function formatBytes(bytes) {
     if (!bytes || isNaN(bytes)) return 'Unknown size';
     const units = ['B', 'KB', 'MB', 'GB'];
     let i = 0;
-    while (bytes >= 1024 && i < units.length - 1) {
-        bytes /= 1024;
-        i++;
-    }
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
     return `${bytes.toFixed(1)} ${units[i]}`;
 }
 
 // ---- Render formats -----------------------------------------------------
-function renderFormats(formats) {
+function renderFormats(formats, mediaType) {
     if (!videoGrid || !audioGrid) return;
-
-    const videos = formats.filter(f => f.has_video);
-    const audios = formats.filter(f => f.has_audio && !f.has_video);
-    const audioFromVideo = formats.filter(f => f.has_video);
 
     videoGrid.innerHTML = '';
     audioGrid.innerHTML = '';
+
+    // Photo or carousel — special rendering
+    if (mediaType === 'photo' || mediaType === 'carousel') {
+        formats.forEach((f) => {
+            videoGrid.appendChild(buildFormatCard(f, 'photo', true));
+        });
+        tabVideo.textContent = mediaType === 'carousel' ? 'Media' : 'Photo';
+        if (tabAudio) tabAudio.style.display = 'none';
+        tabVideo.classList.add('active');
+        videoGrid.style.display = 'grid';
+        audioGrid.style.display = 'none';
+        return;
+    }
+
+    // Reset tabs for video
+    if (tabAudio) tabAudio.style.display = '';
+    tabVideo.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+        </svg>
+        Video (MP4)
+    `;
+
+    const videos = formats.filter(f => f.has_video);
+    const audios = formats.filter(f => f.has_audio && !f.has_video);
 
     if (videos.length === 0) {
         videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
@@ -233,20 +255,14 @@ function renderFormats(formats) {
         });
     }
 
-    const bestForAudio = audioFromVideo[0] || formats[0];
-    if (bestForAudio) {
-        audioGrid.appendChild(buildFormatCard(bestForAudio, 'audio', true));
-    }
-    audios.forEach((f) => {
-        audioGrid.appendChild(buildFormatCard(f, 'audio', false));
-    });
+    const bestForAudio = videos[0] || formats[0];
+    if (bestForAudio) audioGrid.appendChild(buildFormatCard(bestForAudio, 'audio', true));
+    audios.forEach((f) => audioGrid.appendChild(buildFormatCard(f, 'audio', false)));
 
-    if (tabVideo && tabAudio) {
-        tabVideo.classList.add('active');
-        tabAudio.classList.remove('active');
-        videoGrid.style.display = 'grid';
-        audioGrid.style.display = 'none';
-    }
+    tabVideo.classList.add('active');
+    tabAudio.classList.remove('active');
+    videoGrid.style.display = 'grid';
+    audioGrid.style.display = 'none';
 }
 
 function buildFormatCard(fmt, type, recommended) {
@@ -256,18 +272,22 @@ function buildFormatCard(fmt, type, recommended) {
     const quality = fmt.quality || fmt.ext || 'Standard';
     const size = formatBytes(fmt.filesize);
 
+    const iconSvg = type === 'audio'
+        ? '<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>'
+        : type === 'photo'
+        ? '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>'
+        : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>';
+
     card.innerHTML = `
         ${recommended ? '<div class="format-badge">Recommended</div>' : ''}
         <div class="format-title-group">
             <div class="format-quality">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    ${type === 'audio'
-                        ? '<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>'
-                        : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>'}
+                    ${iconSvg}
                 </svg>
                 <span>${quality}</span>
             </div>
-            <div class="format-sub">${type === 'audio' ? 'MP3 192kbps' : fmt.ext?.toUpperCase() || 'MP4'}</div>
+            <div class="format-sub">${type === 'audio' ? 'MP3 192kbps' : (fmt.ext?.toUpperCase() || 'MP4')}</div>
         </div>
         <div class="format-footer">
             <span class="format-size">${size}</span>
@@ -294,10 +314,17 @@ function buildFormatCard(fmt, type, recommended) {
 async function triggerDownload(fmt, type) {
     if (!currentInfo) return;
 
+    // Photo: open direct URL
+    if (type === 'photo' && fmt.direct_url) {
+        window.open(fmt.direct_url, '_blank');
+        showToast('Opening Photo', 'Right-click → Save image as…', 'info');
+        return;
+    }
+
     showLoading(
         type === 'audio'
-            ? 'Preparing MP3... (may take 30-90s if queue busy)'
-            : 'Starting download... (may wait up to 1 min if queue busy)'
+            ? 'Preparing MP3... (may take 30-90s)'
+            : 'Starting download... (may wait if queue busy)'
     );
 
     try {
@@ -308,6 +335,7 @@ async function triggerDownload(fmt, type) {
                 url: currentInfo.url,
                 format_id: fmt.format_id || 'best',
                 type: type,
+                direct_url: fmt.direct_url || null,
             }),
         }, DOWNLOAD_TIMEOUT_MS);
 
@@ -336,10 +364,12 @@ async function triggerDownload(fmt, type) {
         URL.revokeObjectURL(url);
 
         showToast('Download Started', 'Check your browser downloads.', 'success');
-
     } catch (err) {
+        console.error('Download error:', err);
         if (err.name === 'AbortError') {
             showToast('Timeout', 'Server busy — please try again in a minute.', 'error');
+        } else if (err.message.includes('Failed to fetch')) {
+            showToast('Network Error', 'Cannot reach server. Backend may be starting up — retry in 30s.', 'error');
         } else {
             showToast('Download Failed', err.message || 'Try again later.', 'error');
         }
@@ -356,7 +386,6 @@ if (tabVideo && tabAudio) {
         if (videoGrid) videoGrid.style.display = 'grid';
         if (audioGrid) audioGrid.style.display = 'none';
     });
-
     tabAudio.addEventListener('click', () => {
         tabAudio.classList.add('active');
         tabVideo.classList.remove('active');
