@@ -1,6 +1,5 @@
 """
-Sai Digital — Memory-safe downloader for Render Free tier (512 MB RAM).
-Uses semaphore to enforce single concurrent download + low-buffer streaming.
+Sai Digital — Memory-safe downloader + Instagram photo/story support.
 """
 
 import os
@@ -16,10 +15,8 @@ import yt_dlp
 logger = logging.getLogger("sai_digital.downloader")
 
 # ============================================================================
-# GLOBAL CONCURRENCY CONTROL — CRITICAL for 512 MB RAM
+# GLOBAL CONCURRENCY CONTROL
 # ============================================================================
-# Only ONE download at a time. Others wait in queue.
-# Increase to 2 only if you upgrade to Render Starter or Oracle Cloud.
 DOWNLOAD_SEMAPHORE = asyncio.Semaphore(1)
 FFMPEG_SEMAPHORE = asyncio.Semaphore(1)
 
@@ -33,24 +30,29 @@ MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 # MEMORY-SAFE YT-DLP OPTIONS
 # ============================================================================
 def _base_ydl_opts() -> Dict[str, Any]:
-    """
-    Shared yt-dlp opts designed for 512 MB RAM.
-    """
     return {
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": True,
+        "noplaylist": False,  # ← IMPORTANT: Instagram carousel = playlist
         "no_part": True,
         "nocheckcertificate": True,
         "concurrent_fragment_downloads": 1,
-        "buffersize": 1024 * 1024,  # 1 MB
+        "buffersize": 1024 * 1024,
         "retries": 2,
         "fragment_retries": 2,
-        "socket_timeout": 20,
-        "http_chunk_size": 1024 * 1024,  # 1 MB chunks
+        "socket_timeout": 30,
+        "http_chunk_size": 1024 * 1024,
         "noprogress": True,
         "logtostderr": False,
         "skip_download": False,
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        },
     }
 
 
@@ -58,9 +60,11 @@ def _base_ydl_opts() -> Dict[str, Any]:
 # METADATA EXTRACTION
 # ============================================================================
 async def extract_info(url: str) -> Optional[Dict[str, Any]]:
-    """Extract video metadata without downloading."""
     ydl_opts = _base_ydl_opts()
     ydl_opts["skip_download"] = True
+    # Don't expand playlist for video URLs
+    if "instagram.com" not in url.lower():
+        ydl_opts["noplaylist"] = True
 
     def _extract():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -78,9 +82,8 @@ async def extract_info(url: str) -> Optional[Dict[str, Any]]:
 # VIDEO DOWNLOAD (MP4)
 # ============================================================================
 async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
-    """Download video with semaphore guard."""
     async with DOWNLOAD_SEMAPHORE:
-        logger.info(f"[SEMAPHORE ACQUIRED] video download: {url}")
+        logger.info(f"[SEMAPHORE] video download: {url}")
         started = time.time()
 
         file_id = uuid.uuid4().hex[:12]
@@ -91,7 +94,6 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
             "format": format_id,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
-            "postprocessors": [],
         })
 
         def _download():
@@ -99,12 +101,9 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
                 ydl.download([url])
 
         try:
-            await asyncio.wait_for(
-                asyncio.to_thread(_download),
-                timeout=180,
-            )
+            await asyncio.wait_for(asyncio.to_thread(_download), timeout=180)
         except asyncio.TimeoutError:
-            logger.error(f"[TIMEOUT] video download exceeded 180s: {url}")
+            logger.error(f"[TIMEOUT] video: {url}")
             _cleanup_partial(file_id)
             return None
         except Exception as e:
@@ -122,9 +121,8 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
 # AUDIO DOWNLOAD (MP3)
 # ============================================================================
 async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Path]:
-    """Download audio and convert to MP3."""
     async with FFMPEG_SEMAPHORE:
-        logger.info(f"[FFMPEG SEMAPHORE] audio download: {url}")
+        logger.info(f"[FFMPEG] audio download: {url}")
         started = time.time()
 
         file_id = uuid.uuid4().hex[:12]
@@ -139,9 +137,6 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
                 "preferredcodec": "mp3",
                 "preferredquality": "192",
             }],
-            "postprocessor_args": {
-                "ffmpeg": ["-threads", "1", "-bufsize", "1M"],
-            },
         })
 
         def _download():
@@ -149,12 +144,9 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
                 ydl.download([url])
 
         try:
-            await asyncio.wait_for(
-                asyncio.to_thread(_download),
-                timeout=240,
-            )
+            await asyncio.wait_for(asyncio.to_thread(_download), timeout=240)
         except asyncio.TimeoutError:
-            logger.error(f"[TIMEOUT] audio download exceeded 240s: {url}")
+            logger.error(f"[TIMEOUT] audio: {url}")
             _cleanup_partial(file_id)
             return None
         except Exception as e:
@@ -169,15 +161,64 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
 
 
 # ============================================================================
+# INSTAGRAM PHOTO / CAROUSEL DOWNLOAD
+# ============================================================================
+async def download_instagram_media(url: str) -> Optional[Path]:
+    """
+    Download Instagram photo or carousel (multiple images/videos).
+    Returns the FIRST media file (for carousel, yt-dlp will download all).
+    """
+    async with DOWNLOAD_SEMAPHORE:
+        logger.info(f"[INSTAGRAM] downloading media: {url}")
+        started = time.time()
+
+        file_id = uuid.uuid4().hex[:12]
+        out_template = str(DOWNLOADS_DIR / f"{file_id}_%(playlist_index)s.%(ext)s")
+
+        ydl_opts = _base_ydl_opts()
+        ydl_opts.update({
+            "format": "best",
+            "outtmpl": out_template,
+            "noplaylist": False,  # carousel support
+        })
+
+        def _download():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+
+        try:
+            await asyncio.wait_for(asyncio.to_thread(_download), timeout=180)
+        except asyncio.TimeoutError:
+            logger.error(f"[TIMEOUT] instagram: {url}")
+            return None
+        except Exception as e:
+            logger.error(f"instagram download failed: {e}")
+            return None
+
+        # Find any downloaded file
+        matches = list(DOWNLOADS_DIR.glob(f"{file_id}*"))
+        matches = [m for m in matches if not m.name.endswith(".part")]
+        if not matches:
+            return None
+
+        # Prefer video, then image
+        for ext in (".mp4", ".jpg", ".jpeg", ".png", ".webp"):
+            for m in matches:
+                if m.suffix == ext:
+                    logger.info(f"[DONE] instagram in {time.time() - started:.1f}s → {m.name}")
+                    return m
+        return matches[0]
+
+
+# ============================================================================
 # HELPERS
 # ============================================================================
 def _find_downloaded_file(file_id: str) -> Optional[Path]:
-    """Find the downloaded file by its uuid prefix."""
     matches = list(DOWNLOADS_DIR.glob(f"{file_id}.*"))
     matches = [m for m in matches if not m.name.endswith(".part")]
     if not matches:
         return None
-    for ext in (".mp4", ".mp3", ".webm", ".m4a"):
+    for ext in (".mp4", ".mp3", ".webm", ".m4a", ".jpg", ".jpeg", ".png", ".webp"):
         for m in matches:
             if m.suffix == ext:
                 return m
@@ -185,7 +226,6 @@ def _find_downloaded_file(file_id: str) -> Optional[Path]:
 
 
 def _cleanup_partial(file_id: str) -> None:
-    """Remove any partial files for a failed download."""
     for f in DOWNLOADS_DIR.glob(f"{file_id}.*"):
         try:
             f.unlink()
@@ -194,7 +234,6 @@ def _cleanup_partial(file_id: str) -> None:
 
 
 async def cleanup_old_files(max_age_seconds: int = MAX_FILE_AGE_SECONDS) -> int:
-    """Delete files older than max_age_seconds."""
     now = time.time()
     removed = 0
     for f in DOWNLOADS_DIR.glob("*"):
@@ -210,7 +249,6 @@ async def cleanup_old_files(max_age_seconds: int = MAX_FILE_AGE_SECONDS) -> int:
 
 
 def get_queue_status() -> Dict[str, Any]:
-    """Return current semaphore state."""
     return {
         "download_active": DOWNLOAD_SEMAPHORE.locked(),
         "ffmpeg_active": FFMPEG_SEMAPHORE.locked(),
