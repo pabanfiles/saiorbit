@@ -1,11 +1,12 @@
 /* =========================================================================
-   SAI DIGITAL — Frontend logic (fixed fetch errors + Instagram support)
+   ORBIT VIDEO — Frontend logic
+   Fixed: fetch errors, Instagram photo/carousel, sound (merged formats)
    ========================================================================= */
 
 const API_BASE = 'https://sai-digital.onrender.com';
 const API_INFO = API_BASE + '/api/info';
 const API_DOWNLOAD = API_BASE + '/api/download-direct';
-const FETCH_TIMEOUT_MS = 180000;
+const FETCH_TIMEOUT_MS = 90000;
 const DOWNLOAD_TIMEOUT_MS = 240000;
 
 const $ = (id) => document.getElementById(id);
@@ -40,7 +41,6 @@ const PLATFORM_MAP = [
     { name: 'Reddit',    re: /(reddit\.com|redd\.it)/i,           color: '#ff4500' },
     { name: 'Vimeo',     re: /vimeo\.com/i,                       color: '#1ab7ea' },
     { name: 'Threads',   re: /(threads\.net|threads\.com)/i,      color: '#ffffff' },
-    { name: 'YouTube',   re: /(youtube\.com|youtu\.be)/i,         color: '#ff0000' },
 ];
 
 function detectPlatform(url) {
@@ -104,7 +104,7 @@ function hideLoading() {
     if (loadingState) loadingState.style.display = 'none';
 }
 
-// ---- Fetch with timeout + better errors ---------------------------------
+// ---- Fetch with timeout -------------------------------------------------
 async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -130,7 +130,7 @@ if (btnSubmit) {
         }
 
         btnSubmit.disabled = true;
-        showLoading('Analyzing video stream...');
+        showLoading('Analyzing media...');
         if (resultsSection) resultsSection.style.display = 'none';
 
         try {
@@ -148,7 +148,7 @@ if (btnSubmit) {
             }
 
             if (!res.ok) {
-                throw new Error(data.detail || 'Could not fetch video info.');
+                throw new Error(data.detail || 'Could not fetch media info.');
             }
 
             currentInfo = { ...data, url };
@@ -180,7 +180,7 @@ function renderResults(info) {
     if (resultTitle) resultTitle.textContent = info.title || 'Untitled';
     if (resultAuthor) resultAuthor.textContent = info.uploader || 'Unknown';
     if (resultPlatform) {
-        resultPlatform.textContent = info.platform || 'Video';
+        resultPlatform.textContent = info.platform || 'Media';
         const p = detectPlatform(info.webpage_url || '');
         if (p) {
             resultPlatform.style.background = p.color + '22';
@@ -190,6 +190,8 @@ function renderResults(info) {
     }
     if (resultDuration && info.duration) {
         resultDuration.textContent = formatDuration(info.duration);
+    } else if (resultDuration) {
+        resultDuration.style.display = 'none';
     }
 
     renderFormats(info.formats || [], info.media_type || 'video');
@@ -206,7 +208,7 @@ function formatDuration(sec) {
 }
 
 function formatBytes(bytes) {
-    if (!bytes || isNaN(bytes)) return 'Unknown size';
+    if (!bytes || isNaN(bytes) || bytes === 0) return 'Unknown size';
     const units = ['B', 'KB', 'MB', 'GB'];
     let i = 0;
     while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
@@ -220,12 +222,12 @@ function renderFormats(formats, mediaType) {
     videoGrid.innerHTML = '';
     audioGrid.innerHTML = '';
 
-    // Photo or carousel — special rendering
+    // Photo / Carousel
     if (mediaType === 'photo' || mediaType === 'carousel') {
         formats.forEach((f) => {
-            videoGrid.appendChild(buildFormatCard(f, 'photo', true));
+            videoGrid.appendChild(buildFormatCard(f, 'photo', f.format_id === 'photo' || f.format_id === 'carousel_0'));
         });
-        tabVideo.textContent = mediaType === 'carousel' ? 'Media' : 'Photo';
+        tabVideo.textContent = mediaType === 'carousel' ? `Media (${formats.length})` : 'Photo';
         if (tabAudio) tabAudio.style.display = 'none';
         tabVideo.classList.add('active');
         videoGrid.style.display = 'grid';
@@ -243,14 +245,20 @@ function renderFormats(formats, mediaType) {
         Video (MP4)
     `;
 
+    // ✅ FIX: Merged formats আগে দেখাও (sound সহ)
     const videos = formats.filter(f => f.has_video);
     const audios = formats.filter(f => f.has_audio && !f.has_video);
 
     if (videos.length === 0) {
         videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
     } else {
-        videos.sort((a, b) => (b.filesize || 0) - (a.filesize || 0));
-        videos.slice(0, 8).forEach((f, i) => {
+        // Merged (video+audio) প্রথমে
+        videos.sort((a, b) => {
+            if (a.is_merged && !b.is_merged) return -1;
+            if (!a.is_merged && b.is_merged) return 1;
+            return (b.filesize || 0) - (a.filesize || 0);
+        });
+        videos.slice(0, 6).forEach((f, i) => {
             videoGrid.appendChild(buildFormatCard(f, 'video', i === 0));
         });
     }
@@ -269,7 +277,15 @@ function buildFormatCard(fmt, type, recommended) {
     const card = document.createElement('div');
     card.className = 'format-card' + (recommended ? ' recommended' : '');
 
-    const quality = fmt.quality || fmt.ext || 'Standard';
+    let quality = fmt.quality || fmt.ext || 'Standard';
+    // ✅ FIX: "DASH video" → আরও পরিষ্কার label
+    if (quality.toLowerCase().includes('dash')) {
+        quality = quality.replace(/dash/gi, '').trim() || 'Standard';
+    }
+    if (quality === 'Standard' && fmt.ext) {
+        quality = `${fmt.ext.toUpperCase()}`;
+    }
+
     const size = formatBytes(fmt.filesize);
 
     const iconSvg = type === 'audio'
@@ -277,6 +293,13 @@ function buildFormatCard(fmt, type, recommended) {
         : type === 'photo'
         ? '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>'
         : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>';
+
+    let subtitle = '';
+    if (type === 'audio') subtitle = 'MP3 192kbps';
+    else if (type === 'photo') subtitle = fmt.ext?.toUpperCase() || 'JPG';
+    else if (fmt.is_merged) subtitle = `${fmt.ext?.toUpperCase() || 'MP4'} · Sound ✓`;
+    else if (fmt.has_video && !fmt.has_audio) subtitle = `${fmt.ext?.toUpperCase() || 'MP4'} · Video only`;
+    else subtitle = fmt.ext?.toUpperCase() || 'MP4';
 
     card.innerHTML = `
         ${recommended ? '<div class="format-badge">Recommended</div>' : ''}
@@ -287,7 +310,7 @@ function buildFormatCard(fmt, type, recommended) {
                 </svg>
                 <span>${quality}</span>
             </div>
-            <div class="format-sub">${type === 'audio' ? 'MP3 192kbps' : (fmt.ext?.toUpperCase() || 'MP4')}</div>
+            <div class="format-sub">${subtitle}</div>
         </div>
         <div class="format-footer">
             <span class="format-size">${size}</span>
@@ -314,10 +337,39 @@ function buildFormatCard(fmt, type, recommended) {
 async function triggerDownload(fmt, type) {
     if (!currentInfo) return;
 
-    // Photo: open direct URL
-    if (type === 'photo' && fmt.direct_url) {
-        window.open(fmt.direct_url, '_blank');
-        showToast('Opening Photo', 'Right-click → Save image as…', 'info');
+    // ✅ FIX: Photo/Carousel direct URL — proxy দিয়ে download করাও
+    if ((type === 'photo' || fmt.is_direct) && fmt.direct_url) {
+        showLoading('Preparing download...');
+        try {
+            const res = await fetchWithTimeout(API_DOWNLOAD, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url: currentInfo.url,
+                    format_id: fmt.format_id || 'photo',
+                    type: type,
+                    direct_url: fmt.direct_url,
+                }),
+            }, DOWNLOAD_TIMEOUT_MS);
+
+            if (!res.ok) {
+                throw new Error('Download failed');
+            }
+
+            const data = await res.json();
+            if (data.url) {
+                // Direct URL — নতুন tab-এ খুলো
+                window.open(data.url, '_blank', 'noopener');
+                showToast('Opening Photo', 'Long-press → Save image', 'info');
+            }
+        } catch (err) {
+            console.error('Photo download error:', err);
+            // Fallback: সরাসরি URL খুলে দাও
+            window.open(fmt.direct_url, '_blank', 'noopener');
+            showToast('Opening Photo', 'Long-press → Save image', 'info');
+        } finally {
+            hideLoading();
+        }
         return;
     }
 
@@ -335,7 +387,7 @@ async function triggerDownload(fmt, type) {
                 url: currentInfo.url,
                 format_id: fmt.format_id || 'best',
                 type: type,
-                direct_url: fmt.direct_url || null,
+                direct_url: null,
             }),
         }, DOWNLOAD_TIMEOUT_MS);
 
@@ -353,10 +405,13 @@ async function triggerDownload(fmt, type) {
         const a = document.createElement('a');
         a.href = url;
 
-        const safeTitle = (currentInfo.title || 'video').replace(/[^\w\s-]/g, '').slice(0, 60).trim();
-        a.download = type === 'audio'
-            ? `orbit-${safeTitle}.mp3`
-            : `orbit-${safeTitle}.mp4`;
+        const safeTitle = (currentInfo.title || 'video')
+            .replace(/[^\w\s-]/g, '')
+            .slice(0, 60)
+            .trim() || 'video';
+
+        const ext = type === 'audio' ? 'mp3' : (fmt.ext || 'mp4');
+        a.download = `orbit-${safeTitle}.${ext}`;
 
         document.body.appendChild(a);
         a.click();
@@ -369,7 +424,7 @@ async function triggerDownload(fmt, type) {
         if (err.name === 'AbortError') {
             showToast('Timeout', 'Server busy — please try again in a minute.', 'error');
         } else if (err.message.includes('Failed to fetch')) {
-            showToast('Network Error', 'Cannot reach server. Backend may be starting up — retry in 30s.', 'error');
+            showToast('Network Error', 'Cannot reach server. Retry in 30s.', 'error');
         } else {
             showToast('Download Failed', err.message || 'Try again later.', 'error');
         }
