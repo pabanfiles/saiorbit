@@ -1,6 +1,6 @@
 """
 Sai Digital — Memory-safe downloader + Instagram photo/story/carousel support.
-FIXED: merged video+audio (sound works now), carousel all-items download.
+✅ FIXED: Video+Audio merge, carousel download.
 """
 
 import os
@@ -15,9 +15,6 @@ import yt_dlp
 
 logger = logging.getLogger("sai_digital.downloader")
 
-# ============================================================================
-# GLOBAL CONCURRENCY CONTROL
-# ============================================================================
 DOWNLOAD_SEMAPHORE = asyncio.Semaphore(1)
 FFMPEG_SEMAPHORE = asyncio.Semaphore(1)
 
@@ -27,14 +24,11 @@ DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 
 
-# ============================================================================
-# MEMORY-SAFE YT-DLP OPTIONS
-# ============================================================================
 def _base_ydl_opts() -> Dict[str, Any]:
     return {
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": False,  # Instagram carousel = playlist
+        "noplaylist": False,
         "no_part": True,
         "nocheckcertificate": True,
         "concurrent_fragment_downloads": 1,
@@ -57,9 +51,6 @@ def _base_ydl_opts() -> Dict[str, Any]:
     }
 
 
-# ============================================================================
-# METADATA EXTRACTION
-# ============================================================================
 async def extract_info(url: str) -> Optional[Dict[str, Any]]:
     ydl_opts = _base_ydl_opts()
     ydl_opts["skip_download"] = True
@@ -77,7 +68,7 @@ async def extract_info(url: str) -> Optional[Dict[str, Any]]:
 
 
 # ============================================================================
-# VIDEO DOWNLOAD — ✅ FIXED: merged video+audio (sound works!)
+# ✅ FIXED: Video+Audio merge — sound কাজ করবে
 # ============================================================================
 async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
     async with DOWNLOAD_SEMAPHORE:
@@ -89,11 +80,13 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
 
         ydl_opts = _base_ydl_opts()
 
-        # ✅ FIX: 'best' হলে merged video+audio নাও
-        if format_id in ("best", "bestvideo", None):
+        # ✅ FIX: Merged video+audio — sound কাজ করবে
+        if format_id in ("best", "bestvideo", None, ""):
             fmt = "bestvideo+bestaudio/best"
         elif "bestvideo" in format_id and "audio" not in format_id:
-            # শুধু video format হলে audio merge করো
+            fmt = f"{format_id}+bestaudio/best"
+        elif "+" not in format_id and "audio" not in format_id:
+            # Single format_id → best audio merge
             fmt = f"{format_id}+bestaudio/best"
         else:
             fmt = format_id
@@ -102,7 +95,6 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
             "format": fmt,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
-            # ✅ FIX: FFmpeg দিয়ে merge
             "postprocessors": [{
                 "key": "FFmpegVideoConvertor",
                 "preferedformat": "mp4",
@@ -133,9 +125,6 @@ async def download_video(url: str, format_id: str = "best") -> Optional[Path]:
         return result
 
 
-# ============================================================================
-# AUDIO DOWNLOAD (MP3)
-# ============================================================================
 async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Path]:
     async with FFMPEG_SEMAPHORE:
         logger.info(f"[FFMPEG] audio download: {url}")
@@ -146,7 +135,7 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
 
         ydl_opts = _base_ydl_opts()
         ydl_opts.update({
-            "format": format_id if format_id != "best" else "bestaudio/best",
+            "format": format_id if format_id not in ("best", "bestaudio", None) else "bestaudio/best",
             "outtmpl": out_template,
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
@@ -176,27 +165,23 @@ async def download_audio(url: str, format_id: str = "bestaudio") -> Optional[Pat
         return result
 
 
-# ============================================================================
-# INSTAGRAM PHOTO / CAROUSEL / STORY DOWNLOAD
-# ============================================================================
 async def download_instagram_media(url: str) -> Optional[Path]:
     """
     Download Instagram photo, carousel, or story.
-    ✅ FIXED: For carousel, downloads ALL items and returns first video/image.
+    ✅ FIXED: Carousel all-items download।
     """
     async with DOWNLOAD_SEMAPHORE:
         logger.info(f"[INSTAGRAM] downloading media: {url}")
         started = time.time()
 
         file_id = uuid.uuid4().hex[:12]
-        # Carousel-এর জন্য playlist_index যোগ করা
         out_template = str(DOWNLOADS_DIR / f"{file_id}_%(playlist_index)s.%(ext)s")
 
         ydl_opts = _base_ydl_opts()
         ydl_opts.update({
             "format": "best",
             "outtmpl": out_template,
-            "noplaylist": False,  # Carousel support
+            "noplaylist": False,
         })
 
         def _download():
@@ -212,14 +197,12 @@ async def download_instagram_media(url: str) -> Optional[Path]:
             logger.error(f"instagram download failed: {e}")
             return None
 
-        # সব downloaded file খুঁজে বের করো
         matches = list(DOWNLOADS_DIR.glob(f"{file_id}*"))
         matches = [m for m in matches if not m.name.endswith(".part")]
 
         if not matches:
             return None
 
-        # Video প্রথমে prefer করো, তারপর image
         for ext in (".mp4", ".mkv", ".webm", ".jpg", ".jpeg", ".png", ".webp"):
             for m in matches:
                 if m.suffix == ext:
@@ -232,9 +215,6 @@ async def download_instagram_media(url: str) -> Optional[Path]:
         return matches[0]
 
 
-# ============================================================================
-# HELPERS
-# ============================================================================
 def _find_downloaded_file(file_id: str) -> Optional[Path]:
     matches = list(DOWNLOADS_DIR.glob(f"{file_id}.*"))
     matches = [m for m in matches if not m.name.endswith(".part")]
