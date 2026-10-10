@@ -1,0 +1,45 @@
+name: Build and Deploy Video Downloader
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'video-downloader-src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./video-downloader-src
+        run: npm install
+
+      - name: Build
+        working-directory: ./video-downloader-src
+        run: npm run build
+
+      - name: Copy build to video-downloader
+        run: |
+          rm -rf video-downloader
+          mkdir -p video-downloader
+          cp -r video-downloader-src/dist/* video-downloader/
+
+      - name: Commit built files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add video-downloader
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-build video downloader"
+          git push
