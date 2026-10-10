@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#050510">
+
+  <title>{% block title %}Sai Digital — Fast • Free • No Watermark Video Downloader{% endblock %}</title>
+  <meta name="description" content="{% block description %}Download videos from Facebook, Instagram, TikTok, Twitter/X, Pinterest, Reddit, Vimeo, and Threads — MP4 in HD or MP3 audio.{% endblock %}">
+  <meta name="keywords" content="{% block keywords %}video downloader, instagram reels download, facebook video download, tiktok download without watermark, mp3 converter{% endblock %}">
+
+  {% block og_tags %}
+  <meta property="og:title" content="Sai Digital — Fast • Free • No Watermark Video Downloader">
+  <meta property="og:description" content="Download HD videos & MP3 audio from 8 platforms. Fast, free, no watermark, no signup.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://sd.ssssobankura.org{{ request.url.path }}">
+  {% endblock %}
+
+  <link rel="canonical" href="https://sd.ssssobankura.org{{ request.url.path }}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style-additions.css">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23a855f7'/%3E%3Cstop offset='50%25' style='stop-color:%23ec4899'/%3E%3Cstop offset='100%25' style='stop-color:%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='52' font-weight='bold' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- ==================================================================
+       HEADER
+       ================================================================== -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="logo">
+          <div class="logo-mark">S</div>
+          <span class="logo-text">Sai Digital</span>
+        </a>
+        <div class="nav-links">
+          <a href="/" class="{% block nav_home %}{% endblock %}">Home</a>
+          <a href="/blog" class="{% block nav_blog %}{% endblock %}">Blog</a>
+          <a href="/about" class="{% block nav_about %}{% endblock %}">About</a>
+          <a href="/contact" class="{% block nav_contact %}{% endblock %}">Contact</a>
+        </div>
+        <button type="button" class="menu-toggle-btn" id="btn-menu-toggle" aria-label="Toggle mobile menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Mobile Drawer -->
+  <div class="mobile-menu-drawer" id="mobile-drawer">
+    <a href="/" class="mobile-nav-link">Home</a>
+    <a href="/blog" class="mobile-nav-link">Blog</a>
+    <a href="/about" class="mobile-nav-link">About</a>
+    <a href="/contact" class="mobile-nav-link">Contact</a>
+    <a href="/privacy" class="mobile-nav-link">Privacy Policy</a>
+    <a href="/terms" class="mobile-nav-link">Terms of Service</a>
+    <a href="/disclaimer" class="mobile-nav-link">Disclaimer</a>
+  </div>
+
+  <!-- ==================================================================
+       MAIN CONTENT
+       ================================================================== -->
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ==================================================================
+       FOOTER
+       ================================================================== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="logo" style="margin-bottom: 0.75rem;">
+            <div class="logo-mark" style="width: 32px; height: 32px; font-size: 1.1rem;">S</div>
+            <span class="logo-text" style="font-size: 1.1rem;">Sai Digital</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.55;">
+            Fast • Free • No Watermark video downloader for 8 major platforms.
+          </p>
+          <div class="footer-social-links">
+            <a href="https://facebook.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
+            <a href="https://twitter.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="X / Twitter"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+            <a href="https://instagram.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a>
+            <a href="https://linkedin.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/">Downloader</a></li>
+            <li><a href="/blog">Blog</a></li>
+            <li><a href="/about">About Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="/privacy">Privacy Policy</a></li>
+            <li><a href="/terms">Terms of Service</a></li>
+            <li><a href="/disclaimer">Disclaimer</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Support</h4>
+          <ul>
+            <li><a href="/contact">Contact Us</a></li>
+            <li><a href="/sitemap.xml">Sitemap</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        &copy; <span id="footer-year">2025</span> Sai Digital. All rights reserved. &nbsp;·&nbsp; Made for India &amp; Bangladesh.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Common scripts -->
+  <script>
+    (function () {
+      var y = document.getElementById('footer-year');
+      if (y) y.textContent = new Date().getFullYear();
+    })();
+
+    // Hamburger menu toggle
+    document.addEventListener('DOMContentLoaded', function() {
+      var menuBtn = document.getElementById('btn-menu-toggle');
+      var drawer = document.getElementById('mobile-drawer');
+      if (menuBtn && drawer) {
+        menuBtn.addEventListener('click', function () {
+          drawer.classList.toggle('open');
+        });
+      }
+    });
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

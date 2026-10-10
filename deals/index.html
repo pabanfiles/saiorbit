@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaiDeals – Flipkart's Best Deals</title>
+<meta name="description" content="Handpicked deals from Flipkart — verified affiliate price tracking.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="lg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#2874f0"/><text x="5" y="23" font-family="Poppins,sans-serif" font-weight="800" font-size="15" fill="#fff">SD</text><path d="M22 26h13l-1.5 9h-10z" fill="#ffd700"/><path d="M25 26v-2a3.5 3.5 0 017 0v2" fill="none" stroke="#ffd700" stroke-width="1.6"/></symbol></svg>
+
+<div class="bar" id="bar"><span>🎉 FLIPKART SPECIAL: Up to 75% OFF on Electronics, Fashion &amp; Home! Limited Time Deals. Shop Now →</span></div>
+
+<header>
+  <div class="hd">
+    <button class="ibtn burger" id="burger" aria-label="Open menu">☰</button>
+    <a class="logo" href="#"><svg width="38" height="38" aria-hidden="true"><use href="#lg"/></svg><div><b>SaiDeals</b><small>Flipkart Deals ⭐</small></div></a>
+    <div class="search" role="search"><span class="ic">🔍</span><input id="q" type="search" placeholder="Search Flipkart deals" aria-label="Search deals" autocomplete="off"><button class="x" id="qx" aria-label="Clear search">×</button><div class="ac" id="ac"></div></div>
+    <div class="icons">
+      <button class="ibtn bell" id="bell" aria-label="Notifications">🔔<i id="nc">0</i></button>
+      <button class="ibtn" id="wl" aria-label="Wishlist">❤️<i id="wc">0</i></button>
+    </div>
+  </div>
+  <div class="panel" id="np"></div>
+</header>
+
+<div class="scrim" id="scrim"></div>
+<nav class="drawer" id="drawer" aria-label="Menu">
+  <div style="display:flex;justify-content:space-between;align-items:center"><svg width="38" height="38"><use href="#lg"/></svg><b style="color:#2874f0;font-size:20px">SaiDeals</b><button class="ibtn xd" aria-label="Close menu">✕</button></div>
+  <h4>CATEGORIES</h4><a href="#deals">📱 Mobiles &amp; Gadgets</a><a href="#deals">👕 Fashion &amp; Apparel</a><a href="#deals">🏠 Home &amp; Kitchen</a><a href="#deals">💄 Beauty &amp; Health</a><a href="#deals">🧸 Toys &amp; Baby</a><a href="#deals">📚 Books &amp; Stationery</a>
+  <h4>STORE</h4><a href="#deals">🛍️ Flipkart</a>
+  <h4>LINKS</h4><a href="#">🏠 Home</a><a href="#trendsec">🔥 Trending</a><a href="#deals">❤️ Wishlist</a><a href="#foot">ℹ️ About</a>
+  <h4>FOLLOW US</h4><div style="font-size:22px;display:flex;gap:14px">📘 📸 ▶️ 💬</div>
+</nav>
+
+<div class="cats" role="tablist" aria-label="Categories">
+  <button class="on" data-c="all"><span class="c">🛍️</span>All Deals</button>
+  <button data-c="mobiles"><span class="c">📱</span>Mobiles &amp; Gadgets</button>
+  <button data-c="fashion"><span class="c">👕</span>Fashion &amp; Apparel</button>
+  <button data-c="home"><span class="c">🏠</span>Home &amp; Kitchen</button>
+  <button data-c="beauty"><span class="c">💄</span>Beauty &amp; Health</button>
+  <button data-c="toys"><span class="c">🧸</span>Toys &amp; Baby</button>
+  <button data-c="books"><span class="c">📚</span>Books &amp; Stationery</button>
+</div>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <span class="pill">🔥 TODAY'S BIGGEST FLIPKART DROPS</span>
+      <h1>Handpicked Deals from Flipkart</h1>
+      <p>Save hundreds of rupees on trending Flipkart products with verified affiliate price tracking.</p>
+      <a class="btn y" href="#deals">Explore All Deals</a><a class="btn o" href="#" id="alert">🔔 Set Price Drop Alert</a>
+    </div>
+    <div class="collage" aria-hidden="true"><div style="background-image:url(https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&q=60)"></div><div style="background-image:url(https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&q=60)"></div><div style="background-image:url(https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&q=60)"></div></div>
+    <div class="stats"><div><b>75%</b>Max Discount</div><div><b>1</b>Top Store</div><div><b>₹199</b>Deals Starting</div></div>
+  </section>
+
+  <section class="trust"><div><span>✅</span>100% Verified Deals</div><div><span>🚚</span>Fast Delivery</div><div><span>🔒</span>Secure Shopping</div><div><span>💰</span>Best Price Guarantee</div></section>
+
+  <section class="flash" id="flash"><span>⚡ Flash Sale Ends In:</span><b id="timer">02:45:30</b></section>
+
+  <div class="sec" id="trendsec"><h2>🔥 Trending Now</h2><a href="#deals">View All →</a></div>
+  <div class="hs" id="trend"></div>
+
+  <div class="filters" id="deals">
+    <select id="fs" aria-label="Store"><option value="all">All Stores</option><option>Flipkart</option></select>
+    <select id="fp" aria-label="Price"><option value="all">Any Price</option><option value="500">Under ₹500</option><option value="1000">Under ₹1000</option><option value="2000">Under ₹2000</option><option value="5000">Under ₹5000</option></select>
+    <select id="fr" aria-label="Rating"><option value="all">All Ratings</option><option value="4">4★ &amp; up</option><option value="3">3★ &amp; up</option></select>
+    <select id="so" aria-label="Sort"><option value="pop">Popular</option><option value="lo">Price ↑</option><option value="hi">Price ↓</option><option value="rate">Rating</option><option value="new">Newest</option></select>
+    <div class="vt"><button class="on" data-v="g" aria-label="Grid view">▦</button> <button data-v="l" aria-label="List view">☰</button></div>
+    <span class="cnt" id="count">Loading deals…</span>
+  </div>
+
+  <div class="sec"><h2>✨ All Deals</h2></div>
+  <div class="grid" id="grid" aria-live="polite"></div>
+  <button class="more" id="more">Load More</button>
+
+  <div class="sec" id="recsec"><h2>🎯 Recommended For You</h2></div>
+  <div class="hs" id="recs"></div>
+
+  <section class="news"><h2>📬 Get Daily Flipkart Deals in Your Inbox</h2><form id="news"><input type="email" required placeholder="Enter your email" aria-label="Email"><button class="btn y" style="margin:0">Subscribe</button></form><small>No spam. Unsubscribe anytime.</small></section>
+</main>
+
+<footer id="foot"><div class="wrap">
+  <div class="fg">
+    <div><div style="display:flex;gap:8px;align-items:center"><svg width="36" height="36"><use href="#lg"/></svg><b style="color:#fff;font-size:18px">SaiDeals</b></div><p style="margin:10px 0">Flipkart's Best Deals</p><span style="font-size:20px">📘 📸 ▶️ 💬</span></div>
+    <div><h4>Categories</h4><a href="#deals">Mobiles &amp; Gadgets</a><a href="#deals">Fashion</a><a href="#deals">Home &amp; Kitchen</a><a href="#deals">Beauty</a></div>
+    <div><h4>Top Store</h4><a href="#deals">Flipkart</a></div>
+    <div><h4>Quick Links</h4><a href="#">About</a><a href="#">Contact</a><a href="#">Privacy</a><a href="#">Terms</a></div>
+    <div><h4>Download App</h4><a href="#">▶ Google Play</a><a href="#"> App Store</a></div>
+  </div>
+  <p class="disclaim">⚠️ SaiDeals is an affiliate website. We are Flipkart affiliate partners. We earn commission from your clicks — but your price stays the same.</p>
+  <p style="text-align:center">© 2026 SaiDeals. All rights reserved.</p>
+</div></footer>
+
+<button class="fab" id="top" aria-label="Scroll to top">↑</button>
+<a class="fab wa" href="https://wa.me/" target="_blank" rel="noopener" aria-label="WhatsApp">💬</a>
+<div class="cookie" id="cookie"><span>🍪 We use cookies to improve your experience.</span><button id="ck">Got it</button></div>
+<nav class="bn" aria-label="Bottom navigation"><a href="#"><span>🏠</span>Home</a><a href="#" onclick="document.getElementById('burger').click();return false"><span>🗂️</span>Categories</a><a href="#" onclick="document.getElementById('q').focus();return false"><span>🔍</span>Search</a><a href="#" onclick="document.getElementById('wl').click();return false"><span>❤️</span>Wishlist</a><a href="#deals"><span>🔥</span>Deals</a></nav>
+<script src="script.js"></script>
+</body>
+</html>

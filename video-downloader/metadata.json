@@ -1,0 +1,6 @@
+{
+  "name": "VidGrab - Universal Video Downloader",
+  "description": "Download any video in seconds with VidGrab. Fast, free, watermark-free high-definition video and audio extractor powered by yt-dlp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

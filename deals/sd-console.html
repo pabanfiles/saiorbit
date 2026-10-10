@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>SaiDeals Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="lg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#2874f0"/><text x="5" y="23" font-family="Poppins,sans-serif" font-weight="800" font-size="15" fill="#fff">SD</text><path d="M22 26h13l-1.5 9h-10z" fill="#ffd700"/><path d="M25 26v-2a3.5 3.5 0 017 0v2" fill="none" stroke="#ffd700" stroke-width="1.6"/></symbol></svg>
+
+<section id="login" hidden>
+  <form class="lbox" id="lf">
+    <svg width="56" height="56"><use href="#lg"/></svg>
+    <h1>SaiDeals Console</h1><p>Sign in to manage deals</p>
+    <label>Username<input name="u" autocomplete="username" required></label>
+    <label>Password<input name="p" type="password" autocomplete="current-password" required></label>
+    <label class="chk"><input type="checkbox" name="r"> Remember me</label>
+    <button class="btn">Login</button><div class="err" id="le"></div>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <aside id="side">
+    <div class="brand"><svg width="34" height="34"><use href="#lg"/></svg><b>SaiDeals Admin</b></div>
+    <nav>
+      <button data-v="dash" class="on">🏠 Dashboard</button>
+      <button data-v="add">➕ Add Product</button>
+      <button data-v="products">📦 All Products</button>
+      <button data-v="bulk">📥 Bulk Import</button>
+      <button data-v="bm">🔖 Bookmarklet</button>
+      <button data-v="set">⚙️ Settings</button>
+      <button data-v="logout">🚪 Logout</button>
+    </nav>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main">
+    <header class="top"><button class="menu" id="menu" aria-label="Menu">☰</button><b>SaiDeals Admin</b><span>Welcome, Admin</span></header>
+
+    <section id="v-dash" class="view on">
+      <h2>Dashboard</h2>
+      <div class="stats" id="stats"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+    </section>
+
+    <section id="v-add" class="view">
+      <h2 id="ft">Add Product</h2>
+      <form id="pf" class="card form">
+        <label class="w2">Product Name *<input name="name" required></label>
+        <label>Price (₹) *<input name="price" type="number" min="0" required></label>
+        <label>Original Price (₹)<input name="original" type="number" min="0"></label>
+        <label>Rating (0-5)<input name="rating" type="number" min="0" max="5" step="0.1"></label>
+        <label>Reviews Count<input name="reviews" type="number" min="0"></label>
+        <label>Store<select name="store"><option>Amazon</option><option>Flipkart</option><option>Meesho</option><option>Ajio</option></select></label>
+        <label>Category<select name="category"><option value="mobiles">Gadget</option><option value="fashion">Fashion</option><option value="home">Home</option><option value="beauty">Beauty</option><option value="toys">Toys</option><option value="books">Books</option></select></label>
+        <label>Badge<select name="badge"><option value="">None</option><option>Bestseller</option><option>Trending</option><option>New</option><option>Deal</option></select></label>
+        <label class="w2">Image URL<span class="row"><input name="image" type="url" placeholder="https://..."><a class="btn ghost" href="https://imgbb.com" target="_blank" rel="noopener noreferrer">Upload to ImgBB</a></span></label>
+        <label class="w2">Affiliate Link *<input name="link" type="url" required></label>
+        <label class="w2">Description<textarea name="desc" rows="3"></textarea></label>
+        <div class="w2 row"><button class="btn">Save Product</button><button type="button" class="btn ghost" id="pc">Clear</button></div>
+      </form>
+    </section>
+
+    <section id="v-products" class="view">
+      <h2>All Products</h2>
+      <div class="card bar">
+        <input id="tq" placeholder="Search products">
+        <select id="ts"><option value="">All stores</option><option>Amazon</option><option>Flipkart</option><option>Meesho</option><option>Ajio</option></select>
+        <select id="tc"><option value="">All categories</option><option value="mobiles">Gadget</option><option value="fashion">Fashion</option><option value="home">Home</option><option value="beauty">Beauty</option><option value="toys">Toys</option><option value="books">Books</option></select>
+        <select id="to"><option value="date">Newest</option><option value="price">Price</option><option value="name">Name</option></select>
+        <button class="btn ghost" id="ex">Export JSON</button>
+        <label class="btn ghost">Import JSON<input type="file" id="im" accept=".json,application/json" hidden></label>
+      </div>
+      <div class="card tw"><table><thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Price</th><th>Store</th><th>Category</th><th>Actions</th></tr></thead><tbody id="tb"></tbody></table></div>
+    </section>
+
+    <section id="v-bulk" class="view">
+      <h2>Bulk Import</h2>
+      <div class="card"><textarea id="bt" rows="14" placeholder='[{"name":"...","price":499,"original":1299,"store":"Amazon","category":"fashion","link":"https://..."}]'></textarea>
+      <div class="row"><button class="btn ghost" id="bv">Validate</button><button class="btn" id="bi">Import</button><span id="bm2"></span></div></div>
+    </section>
+
+    <section id="v-bm" class="view">
+      <h2>Bookmarklet</h2>
+      <div class="card"><textarea id="bk" rows="8" readonly></textarea><div class="row"><button class="btn" id="bc">Copy Bookmarklet</button></div>
+      <ol><li>Show your bookmarks bar (Chrome/Edge: Ctrl+Shift+B).</li><li>Add a new bookmark, name it "Add to SaiDeals", and paste the code above as its URL.</li><li>Open any Amazon, Flipkart, Meesho or Ajio product, then click the bookmark.</li><li>Press "Copy to Admin Panel" to open this console with the form pre-filled.</li></ol></div>
+    </section>
+
+    <section id="v-set" class="view">
+      <h2>Settings</h2>
+      <form id="sf" class="card form">
+        <label>Site Name<input name="name"></label>
+        <label>Site Tagline<input name="tagline"></label>
+        <label class="tg"><input type="checkbox" name="bar"> Show announcement bar</label>
+        <label class="tg"><input type="checkbox" name="flash"> Show flash sale timer</label>
+        <label class="tg"><input type="checkbox" name="recs"> Show recommendations section</label>
+        <div class="w2 row"><button class="btn">Save Settings</button></div>
+      </form>
+      <form id="pw" class="card form">
+        <h3 class="w2">Change Password</h3>
+        <label>Old password<input name="o" type="password" required autocomplete="current-password"></label>
+        <label>New password<input name="n" type="password" minlength="6" required autocomplete="new-password"></label>
+        <label>Confirm new password<input name="c" type="password" required autocomplete="new-password"></label>
+        <div class="w2 row"><button class="btn">Update Password</button></div>
+      </form>
+    </section>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<div class="modal" id="cm" hidden><div class="mb"><p id="ct"></p><div class="row"><button class="btn ghost" id="cn">Cancel</button><button class="btn red" id="cy">Delete</button></div></div></div>
+<script src="admin.js"></script>
+</body>
+</html>
