@@ -1,6 +1,6 @@
 """
-Sai Digital — FastAPI backend (Fixed CORS + Instagram photo/story/reel support).
-YouTube removed as requested.
+Sai Digital — FastAPI backend (Fixed: format labels + sound + Instagram).
+YouTube removed.
 """
 
 import os
@@ -26,24 +26,16 @@ from downloader import (
     DOWNLOADS_DIR,
 )
 
-# ============================================================================
-# LOGGING
-# ============================================================================
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("sai_digital")
 
-
-# ============================================================================
-# ENV
-# ============================================================================
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
 MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 
-# ✅ FIXED CORS — allow all saiorbit domains
 ALLOWED_ORIGINS = [
     "https://saiorbit.pages.dev",
     "https://saiorbit.com",
@@ -57,10 +49,6 @@ ALLOWED_ORIGINS = [
     "http://localhost:3000",
 ]
 
-
-# ============================================================================
-# URL VALIDATION — YouTube REMOVED ✅
-# ============================================================================
 ALLOWED_DOMAINS = [
     "facebook.com", "fb.watch", "fb.com",
     "instagram.com", "instagr.am",
@@ -70,7 +58,6 @@ ALLOWED_DOMAINS = [
     "reddit.com", "redd.it",
     "vimeo.com",
     "threads.net", "threads.com",
-    # youtube.com এবং youtu.be বাদ দেওয়া হয়েছে
 ]
 
 
@@ -95,9 +82,6 @@ def is_instagram_story(url: str) -> bool:
     return bool(re.search(r'instagram\.com/stories/', url, re.I))
 
 
-# ============================================================================
-# RATE LIMITING
-# ============================================================================
 _rate_buckets: dict = defaultdict(list)
 
 
@@ -122,9 +106,6 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-# ============================================================================
-# BACKGROUND CLEANUP
-# ============================================================================
 async def periodic_cleanup():
     while True:
         try:
@@ -136,9 +117,6 @@ async def periodic_cleanup():
         await asyncio.sleep(60)
 
 
-# ============================================================================
-# LIFESPAN
-# ============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 60)
@@ -156,16 +134,12 @@ async def lifespan(app: FastAPI):
     logger.info("Sai Digital shutting down.")
 
 
-# ============================================================================
-# APP
-# ============================================================================
 app = FastAPI(
     title="Sai Digital — Video Downloader",
-    version="6.0",
+    version="6.1",
     lifespan=lifespan,
 )
 
-# ✅ FIXED CORS — wildcard subdomain support
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -178,15 +152,12 @@ app.add_middleware(
 )
 
 
-# ============================================================================
-# HEALTH
-# ============================================================================
 @app.get("/")
 async def root():
     return {
         "status": "ok",
         "service": "Sai Digital Video Downloader",
-        "version": "6.0",
+        "version": "6.1",
     }
 
 
@@ -195,7 +166,7 @@ async def health():
     status = get_queue_status()
     return {
         "status": "ok",
-        "version": "6.0",
+        "version": "6.1",
         "environment": ENVIRONMENT,
         "queue": status,
         "timestamp": time.time(),
@@ -203,8 +174,100 @@ async def health():
 
 
 # ============================================================================
-# API — INFO
+# ✅ FIXED: Format label logic
 # ============================================================================
+def _get_quality_label(f: dict) -> str:
+    """
+    Format label ঠিকভাবে বানাও।
+    Priority: height (720p) > format_note > resolution > ext
+    """
+    # 1. Height দিয়ে (সবচেয়ে ভালো)
+    height = f.get("height")
+    if height:
+        return f"{height}p"
+    
+    # 2. Resolution string
+    resolution = f.get("resolution")
+    if resolution and resolution != "audio only":
+        return resolution
+    
+    # 3. Format note (কিন্তু "DASH video" বাদ দাও)
+    format_note = f.get("format_note")
+    if format_note:
+        # "DASH video" → "Video"
+        clean = re.sub(r'\bdash\b', '', format_note, flags=re.I).strip()
+        if clean:
+            return clean
+    
+    # 4. Format string থেকে height বের করো
+    fmt_str = f.get("format") or ""
+    m = re.search(r'(\d{3,4})p', fmt_str)
+    if m:
+        return f"{m.group(1)}p"
+    
+    # 5. Audio only
+    if f.get("acodec") and f.get("vcodec") in (None, "none"):
+        abr = f.get("abr")
+        if abr:
+            return f"Audio {int(abr)}kbps"
+        return "Audio"
+    
+    # 6. Fallback: ext
+    ext = (f.get("ext") or "").upper()
+    return ext if ext else "Standard"
+
+
+def _filter_formats(formats):
+    """
+    ✅ FIXED: Video+Audio formats আলাদা করে দেখাও।
+    Merged detection improve করো।
+    """
+    out = []
+    
+    for f in formats:
+        if not f.get("url"):
+            continue
+        
+        vcodec = f.get("vcodec")
+        acodec = f.get("acodec")
+        has_video = vcodec not in (None, "none")
+        has_audio = acodec not in (None, "none")
+        
+        # ✅ FIXED: Audio-only বাদ দাও video list থেকে
+        # (audio tab-এ আলাদাভাবে দেখাব)
+        if not has_video:
+            continue
+        
+        # Filesize calculation
+        filesize = f.get("filesize") or f.get("filesize_approx")
+        
+        quality = _get_quality_label(f)
+        
+        out.append({
+            "format_id": f.get("format_id"),
+            "ext": f.get("ext"),
+            "quality": quality,
+            "height": f.get("height"),
+            "filesize": filesize,
+            "vcodec": vcodec,
+            "acodec": acodec,
+            "has_video": has_video,
+            "has_audio": has_audio,
+            "is_merged": has_video and has_audio,  # একই stream-এ দুটোই
+            "is_direct": False,
+            "fps": f.get("fps"),
+            "tbr": f.get("tbr"),
+        })
+    
+    # ✅ Sort: Height অনুযায়ী (720p > 480p > 360p)
+    out.sort(key=lambda x: (
+        -(x.get("height") or 0),
+        -(x.get("tbr") or 0),
+    ))
+    
+    return out
+
+
 @app.post("/api/info")
 async def api_info(request: Request):
     ip = get_client_ip(request)
@@ -229,7 +292,6 @@ async def api_info(request: Request):
             detail="Could not extract video info. Content may be private, removed, or region-locked.",
         )
 
-    # Instagram detection
     instagram = is_instagram(url)
     instagram_story = is_instagram_story(url)
     media_type = "video"
@@ -240,8 +302,9 @@ async def api_info(request: Request):
         elif info.get("ext", "").lower() in ("jpg", "jpeg", "png", "webp"):
             media_type = "photo"
 
-    # ✅ FIXED: Carousel — সব entry আলাদা format হিসেবে
     formats = []
+    
+    # ✅ FIXED: Carousel handling
     if media_type == "carousel" and info.get("entries"):
         for idx, entry in enumerate(info["entries"]):
             if not entry:
@@ -252,11 +315,13 @@ async def api_info(request: Request):
                 "format_id": f"carousel_{idx}",
                 "ext": entry_ext,
                 "quality": f"Item {idx + 1} ({'Photo' if is_photo else 'Video'})",
+                "height": None,
                 "filesize": entry.get("filesize"),
                 "vcodec": None if is_photo else "h264",
                 "acodec": None if is_photo else "aac",
                 "has_video": not is_photo,
                 "has_audio": not is_photo,
+                "is_merged": not is_photo,
                 "direct_url": entry.get("url"),
                 "is_photo": is_photo,
                 "is_direct": True,
@@ -264,24 +329,31 @@ async def api_info(request: Request):
     else:
         formats = _filter_formats(info.get("formats") or [])
 
-    # Photo — direct download
-    if media_type == "photo" and info.get("url"):
-        formats = [{
-            "format_id": "photo",
-            "ext": info.get("ext", "jpg"),
-            "quality": "Original Photo",
-            "filesize": info.get("filesize"),
-            "vcodec": "none",
-            "acodec": "none",
-            "has_video": False,
-            "has_audio": False,
-            "direct_url": info.get("url"),
-            "is_photo": True,
-            "is_direct": True,
-        }]
+    # ✅ FIXED: Photo detection robust
+    if media_type == "photo":
+        photo_url = (
+            info.get("url")
+            or (info.get("thumbnails") or [{}])[-1].get("url")
+        )
+        if photo_url:
+            formats = [{
+                "format_id": "photo",
+                "ext": info.get("ext", "jpg"),
+                "quality": "Original Photo",
+                "height": None,
+                "filesize": info.get("filesize"),
+                "vcodec": None,
+                "acodec": None,
+                "has_video": False,
+                "has_audio": False,
+                "is_merged": False,
+                "direct_url": photo_url,
+                "is_photo": True,
+                "is_direct": True,
+            }]
 
     return {
-        "title": info.get("title") or "Instagram Media",
+        "title": info.get("title") or "Media",
         "thumbnail": info.get("thumbnail"),
         "duration": info.get("duration"),
         "uploader": info.get("uploader"),
@@ -294,43 +366,6 @@ async def api_info(request: Request):
     }
 
 
-def _filter_formats(formats):
-    """Filter & sort formats — prioritize video+audio merged."""
-    out = []
-    for f in formats:
-        if not f.get("url"):
-            continue
-        vcodec = f.get("vcodec")
-        acodec = f.get("acodec")
-        has_video = vcodec not in (None, "none")
-        has_audio = acodec not in (None, "none")
-
-        out.append({
-            "format_id": f.get("format_id"),
-            "ext": f.get("ext"),
-            "quality": (
-                f.get("format_note")
-                or f.get("resolution")
-                or f.get("format")
-                or "Standard"
-            ),
-            "filesize": f.get("filesize") or f.get("filesize_approx"),
-            "vcodec": vcodec,
-            "acodec": acodec,
-            "has_video": has_video,
-            "has_audio": has_audio,
-            "is_merged": has_video and has_audio,
-            "is_direct": False,
-        })
-
-    # Sort: merged (video+audio) first, then by filesize desc
-    out.sort(key=lambda x: (not x["is_merged"], -(x.get("filesize") or 0)))
-    return out
-
-
-# ============================================================================
-# API — DOWNLOAD DIRECT
-# ============================================================================
 @app.post("/api/download-direct")
 async def download_direct(request: Request):
     ip = get_client_ip(request)
@@ -352,7 +387,7 @@ async def download_direct(request: Request):
     if not is_allowed_url(url):
         raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL")
 
-    # Direct URL (Instagram photo/carousel item)
+    # ✅ Direct URL (photo/carousel) — باckend download করবে না
     if direct_url:
         return JSONResponse({
             "type": "direct",
@@ -418,9 +453,6 @@ async def download_direct(request: Request):
     )
 
 
-# ============================================================================
-# API — CONTACT
-# ============================================================================
 @app.post("/api/contact")
 async def contact_api(request: Request):
     ip = get_client_ip(request)
