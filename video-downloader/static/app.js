@@ -1,6 +1,6 @@
 /* =========================================================================
    ORBIT VIDEO — Frontend logic
-   ✅ FIXED: Format labels (720p, 480p) + Sound (merged format hint)
+   ✅ FIXED: Dedup formats + direct fast download
    ========================================================================= */
 
 const API_BASE = 'https://sai-digital.onrender.com';
@@ -31,6 +31,7 @@ const audioGrid = $('audio-formats-grid');
 
 let currentInfo = null;
 
+// ---- Platform detect ----------------------------------------------------
 const PLATFORM_MAP = [
     { name: 'Facebook',  re: /(facebook\.com|fb\.watch|fb\.com)/i, color: '#1877f2' },
     { name: 'Instagram', re: /(instagram\.com|instagr\.am)/i,      color: '#e4405f' },
@@ -64,6 +65,7 @@ if (urlInput) {
     });
 }
 
+// ---- Paste button -------------------------------------------------------
 if (btnPaste) {
     btnPaste.addEventListener('click', async () => {
         try {
@@ -76,6 +78,7 @@ if (btnPaste) {
     });
 }
 
+// ---- Toast --------------------------------------------------------------
 function showToast(title, message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -101,6 +104,7 @@ function hideLoading() {
     if (loadingState) loadingState.style.display = 'none';
 }
 
+// ---- Fetch with timeout -------------------------------------------------
 async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -111,6 +115,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
     }
 }
 
+// ---- Submit -------------------------------------------------------------
 if (btnSubmit) {
     btnSubmit.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -167,6 +172,7 @@ if (btnSubmit) {
     });
 }
 
+// ---- Render results -----------------------------------------------------
 function renderResults(info) {
     if (!resultsSection) return;
 
@@ -209,6 +215,7 @@ function formatBytes(bytes) {
     return `${bytes.toFixed(1)} ${units[i]}`;
 }
 
+// ---- Render formats -----------------------------------------------------
 function renderFormats(formats, mediaType) {
     if (!videoGrid || !audioGrid) return;
 
@@ -228,7 +235,7 @@ function renderFormats(formats, mediaType) {
         return;
     }
 
-    // Reset tabs for video
+    // Reset tabs
     if (tabAudio) tabAudio.style.display = '';
     tabVideo.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -238,13 +245,23 @@ function renderFormats(formats, mediaType) {
         Video (MP4)
     `;
 
-    // ✅ FIX: Video formats — Sound badge দেখাও
-    const videos = formats.filter(f => f.has_video);
+    // ✅ FIX: Dedup by height (frontend safety)
+    const seenHeights = new Set();
+    const videos = [];
+
+    for (const f of formats) {
+        if (!f.has_video) continue;
+        const h = f.height || 0;
+        if (seenHeights.has(h)) continue;
+        seenHeights.add(h);
+        videos.push(f);
+    }
+
+    videos.sort((a, b) => (b.height || 0) - (a.height || 0));
 
     if (videos.length === 0) {
         videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
     } else {
-        // Height অনুযায়ী sort (backend-এ already sorted)
         videos.slice(0, 8).forEach((f, i) => {
             videoGrid.appendChild(buildFormatCard(f, 'video', i === 0));
         });
@@ -263,19 +280,17 @@ function renderFormats(formats, mediaType) {
     audioGrid.style.display = 'none';
 }
 
+// ---- Build format card --------------------------------------------------
 function buildFormatCard(fmt, type, recommended) {
     const card = document.createElement('div');
     card.className = 'format-card' + (recommended ? ' recommended' : '');
 
-    // ✅ FIXED: Quality label
     let quality = fmt.quality || '';
     if (!quality) {
         if (fmt.height) quality = `${fmt.height}p`;
         else if (fmt.ext) quality = fmt.ext.toUpperCase();
         else quality = 'Standard';
     }
-    
-    // "DASH video" → "Video"
     quality = quality.replace(/dash\s*/gi, '').trim() || 'Standard';
 
     const size = formatBytes(fmt.filesize);
@@ -286,17 +301,15 @@ function buildFormatCard(fmt, type, recommended) {
         ? '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>'
         : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>';
 
-    // ✅ FIXED: Sound badge
     let subtitle = '';
     if (type === 'audio') {
         subtitle = 'MP3 192kbps';
     } else if (type === 'photo') {
         subtitle = fmt.ext?.toUpperCase() || 'JPG';
     } else {
-        // Video
         const ext = (fmt.ext || 'mp4').toUpperCase();
-        const soundBadge = fmt.has_audio !== false ? ' · 🔊 Sound' : '';
-        subtitle = `${ext}${soundBadge}`;
+        const sound = fmt.has_audio !== false ? ' · 🔊 Sound' : '';
+        subtitle = `${ext}${sound}`;
     }
 
     card.innerHTML = `
@@ -331,20 +344,42 @@ function buildFormatCard(fmt, type, recommended) {
     return card;
 }
 
+// ---- Trigger download ---------------------------------------------------
 async function triggerDownload(fmt, type) {
     if (!currentInfo) return;
 
-    // Photo/Carousel direct URL
+    // ✅ FAST: Progressive format → direct download (instant)
+    if (fmt.is_progressive && fmt.direct_url) {
+        showToast('Fast Download', 'Starting direct download...', 'info');
+
+        const a = document.createElement('a');
+        a.href = fmt.direct_url;
+        const safeTitle = (currentInfo.title || 'video')
+            .replace(/[^\w\s-]/g, '')
+            .slice(0, 40)
+            .trim() || 'video';
+        a.download = `orbit-${safeTitle}.${fmt.ext || 'mp4'}`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        return;
+    }
+
+    // Photo/Carousel direct
     if ((type === 'photo' || fmt.is_direct) && fmt.direct_url) {
         window.open(fmt.direct_url, '_blank', 'noopener');
         showToast('Opening Photo', 'Long-press → Save image', 'info');
         return;
     }
 
+    // Backend download
     showLoading(
         type === 'audio'
             ? 'Preparing MP3... (may take 30-90s)'
-            : 'Starting download... (may wait if queue busy)'
+            : 'Downloading video... (may take 30-120s)'
     );
 
     try {
@@ -401,6 +436,7 @@ async function triggerDownload(fmt, type) {
     }
 }
 
+// ---- Tab switching ------------------------------------------------------
 if (tabVideo && tabAudio) {
     tabVideo.addEventListener('click', () => {
         tabVideo.classList.add('active');
@@ -416,6 +452,7 @@ if (tabVideo && tabAudio) {
     });
 }
 
+// ---- Reveal on scroll ---------------------------------------------------
 (function revealOnScroll() {
     const els = document.querySelectorAll('.reveal');
     if (!els.length) return;
