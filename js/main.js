@@ -11,7 +11,7 @@
      icon: '🖼️',
      title: 'Orbit Image Compressor',
      desc: 'Compress images without losing quality.',
-     url: '/image-compressor',
+     url: 'image-compressor/',
      color: '#10b981'  // optional
    }
 ------------------------------------------------------------ */
@@ -20,32 +20,32 @@ const TOOLS = [
     icon: '🎬',
     title: 'Orbit Video Downloader',
     desc: 'Download videos from your favorite platforms — fast, free, and watermark-free.',
-    url: '/video-downloader',
+    url: 'video-downloader/',
   },
   {
     icon: '📄',
     title: 'Orbit PDF Editor',
     desc: 'Edit, merge, split, and convert PDFs right in your browser. No installs needed.',
-    url: '/pdf-editor',
+    url: 'pdf-editor/site/',
   },
   {
     icon: '🛒',
     title: 'Orbit Deals',
     desc: 'Handpicked Flipkart deals and offers, updated daily. Save more on every purchase.',
-    url: '/deals',
+    url: 'deals/',
   },
   // 👇 Future tools — just uncomment or add more
   // {
   //   icon: '🖼️',
   //   title: 'Orbit Image Tools',
   //   desc: 'Compress, resize, and convert images in one click.',
-  //   url: '/image-tools',
+  //   url: 'image-tools/',
   // },
   // {
   //   icon: '📝',
   //   title: 'Orbit Text Utils',
   //   desc: 'Word count, case convert, and text cleaning tools.',
-  //   url: '/text-tools',
+  //   url: 'text-tools/',
   // },
 ];
 
@@ -159,17 +159,6 @@ function initScrollReveal() {
 }
 
 /* ------------------------------------------------------------
-   INIT ALL
------------------------------------------------------------- */
-document.addEventListener('DOMContentLoaded', () => {
-  renderTools();
-  initMenu();
-  initTheme();
-  initBackToTop();
-  initYear();
-  initScrollReveal();
-});
-/* ------------------------------------------------------------
    CONTACT FORM HANDLER
 ------------------------------------------------------------ */
 function initContactForm() {
@@ -261,7 +250,9 @@ function renderDeals() {
   `).join('');
 }
 
-/* Update INIT list at bottom */
+/* ------------------------------------------------------------
+   INIT ALL
+------------------------------------------------------------ */
 document.addEventListener('DOMContentLoaded', () => {
   renderTools();
   initMenu();
@@ -269,6 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initBackToTop();
   initYear();
   initScrollReveal();
-  initContactForm();   // ← new
-  renderDeals();       // ← new
+  initContactForm();
+  renderDeals();
 });

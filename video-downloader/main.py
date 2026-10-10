@@ -50,6 +50,9 @@ MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 ALLOWED_ORIGINS = [
     "https://sd.ssssobankura.org",
     "https://sai-digital.onrender.com",
+    "https://saiorbit.pages.dev",
+    "https://saiorbit.com",
+    "https://www.saiorbit.com",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
