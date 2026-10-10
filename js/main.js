@@ -169,3 +169,106 @@ document.addEventListener('DOMContentLoaded', () => {
   initYear();
   initScrollReveal();
 });
+/* ------------------------------------------------------------
+   CONTACT FORM HANDLER
+------------------------------------------------------------ */
+function initContactForm() {
+  const form = document.getElementById('contactForm');
+  if (!form) return;
+
+  const msgEl = document.getElementById('formMessage');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Sending...';
+
+    // 👇 এখানে তোমার backend endpoint বসাও
+    // Demo: just simulate success
+    setTimeout(() => {
+      if (msgEl) {
+        msgEl.className = 'form-message success';
+        msgEl.textContent = '✅ Message sent! We will get back to you soon.';
+      }
+      form.reset();
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }, 1200);
+
+    /* Real implementation example:
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(form)))
+      });
+      if (!res.ok) throw new Error('Failed');
+      msgEl.className = 'form-message success';
+      msgEl.textContent = '✅ Message sent!';
+      form.reset();
+    } catch (err) {
+      msgEl.className = 'form-message error';
+      msgEl.textContent = '❌ Something went wrong. Please try again.';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+    */
+  });
+}
+
+/* ------------------------------------------------------------
+   DEALS RENDERER (for /deals page)
+------------------------------------------------------------ */
+const DEALS = [
+  // 👇 এখানে Flipkart affiliate deals যোগ করো
+  // Example:
+  // {
+  //   title: 'Wireless Earbuds — 60% Off',
+  //   price: '₹1,299',
+  //   oldPrice: '₹3,299',
+  //   image: '🎧',
+  //   url: 'https://fkrt.it/your-affiliate-link',
+  // },
+];
+
+function renderDeals() {
+  const grid = document.getElementById('dealsGrid');
+  if (!grid) return;
+
+  if (DEALS.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-muted);">
+        <p style="font-size: 1.1rem;">🛒 নতুন ডিল খুব শীঘ্রই আসছে!</p>
+        <p>Bookmark করে রাখো — প্রতিদিন আপডেট হবে।</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = DEALS.map(d => `
+    <div class="deal-card">
+      <div class="deal-image">${d.image || '🛍️'}</div>
+      <div class="deal-body">
+        <h3 class="deal-title">${d.title}</h3>
+        <div class="deal-price">${d.price}${d.oldPrice ? `<s>${d.oldPrice}</s>` : ''}</div>
+        <a href="${d.url}" target="_blank" rel="noopener sponsored" class="deal-btn">Buy on Flipkart →</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* Update INIT list at bottom */
+document.addEventListener('DOMContentLoaded', () => {
+  renderTools();
+  initMenu();
+  initTheme();
+  initBackToTop();
+  initYear();
+  initScrollReveal();
+  initContactForm();   // ← new
+  renderDeals();       // ← new
+});
