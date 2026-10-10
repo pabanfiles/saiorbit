@@ -1,5 +1,6 @@
 """
-Sai Digital — FastAPI backend (fixed CORS + Instagram photo/story support).
+Sai Digital — FastAPI backend (Fixed CORS + Instagram photo/story/reel support).
+YouTube removed as requested.
 """
 
 import os
@@ -8,7 +9,6 @@ import time
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from collections import defaultdict
 from urllib.parse import urlparse
 
@@ -40,13 +40,12 @@ logger = logging.getLogger("sai_digital")
 # ENV
 # ============================================================================
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
 MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 
-# ✅ FIXED: allow all Cloudflare Pages subdomains + localhost
+# ✅ FIXED CORS — allow all saiorbit domains
 ALLOWED_ORIGINS = [
     "https://saiorbit.pages.dev",
-    "https://*.saiorbit.pages.dev",        # preview deployments
     "https://saiorbit.com",
     "https://www.saiorbit.com",
     "https://sai-digital.onrender.com",
@@ -55,11 +54,12 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:5500",
     "http://127.0.0.1:5500",
+    "http://localhost:3000",
 ]
 
 
 # ============================================================================
-# URL VALIDATION
+# URL VALIDATION — YouTube REMOVED ✅
 # ============================================================================
 ALLOWED_DOMAINS = [
     "facebook.com", "fb.watch", "fb.com",
@@ -70,7 +70,7 @@ ALLOWED_DOMAINS = [
     "reddit.com", "redd.it",
     "vimeo.com",
     "threads.net", "threads.com",
-    "youtube.com", "youtu.be", "m.youtube.com",
+    # youtube.com এবং youtu.be বাদ দেওয়া হয়েছে
 ]
 
 
@@ -145,7 +145,6 @@ async def lifespan(app: FastAPI):
     logger.info("Sai Digital starting up...")
     logger.info(f"DOWNLOADS_DIR = {DOWNLOADS_DIR.resolve()}")
     logger.info(f"ENVIRONMENT = {ENVIRONMENT}")
-    logger.info(f"RATE_LIMIT = {RATE_LIMIT_PER_MINUTE}/min")
     logger.info("=" * 60)
     task = asyncio.create_task(periodic_cleanup())
     yield
@@ -162,19 +161,19 @@ async def lifespan(app: FastAPI):
 # ============================================================================
 app = FastAPI(
     title="Sai Digital — Video Downloader",
-    version="5.0",
+    version="6.0",
     lifespan=lifespan,
 )
 
-# ✅ FIXED CORS
+# ✅ FIXED CORS — wildcard subdomain support
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.saiorbit\.pages\.dev",  # সব preview URL
+    allow_origin_regex=r"https://.*\.saiorbit\.pages\.dev",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    expose_headers=["Content-Disposition", "Content-Length"],
     max_age=3600,
 )
 
@@ -187,7 +186,7 @@ async def root():
     return {
         "status": "ok",
         "service": "Sai Digital Video Downloader",
-        "version": "5.0",
+        "version": "6.0",
     }
 
 
@@ -196,7 +195,7 @@ async def health():
     status = get_queue_status()
     return {
         "status": "ok",
-        "version": "5.0",
+        "version": "6.0",
         "environment": ENVIRONMENT,
         "queue": status,
         "timestamp": time.time(),
@@ -227,36 +226,58 @@ async def api_info(request: Request):
     if not info:
         raise HTTPException(
             status_code=502,
-            detail="Could not extract video info. Check URL or try a different platform.",
+            detail="Could not extract video info. Content may be private, removed, or region-locked.",
         )
 
-    # Instagram photo/carousel detection
+    # Instagram detection
     instagram = is_instagram(url)
+    instagram_story = is_instagram_story(url)
     media_type = "video"
-    
+
     if instagram:
-        # Check if entries (carousel) or single
         if "entries" in info and info["entries"]:
             media_type = "carousel"
         elif info.get("ext", "").lower() in ("jpg", "jpeg", "png", "webp"):
             media_type = "photo"
 
-    # Build formats list
-    formats = _filter_formats(info.get("formats") or [])
+    # ✅ FIXED: Carousel — সব entry আলাদা format হিসেবে
+    formats = []
+    if media_type == "carousel" and info.get("entries"):
+        for idx, entry in enumerate(info["entries"]):
+            if not entry:
+                continue
+            entry_ext = entry.get("ext", "jpg")
+            is_photo = entry_ext.lower() in ("jpg", "jpeg", "png", "webp")
+            formats.append({
+                "format_id": f"carousel_{idx}",
+                "ext": entry_ext,
+                "quality": f"Item {idx + 1} ({'Photo' if is_photo else 'Video'})",
+                "filesize": entry.get("filesize"),
+                "vcodec": None if is_photo else "h264",
+                "acodec": None if is_photo else "aac",
+                "has_video": not is_photo,
+                "has_audio": not is_photo,
+                "direct_url": entry.get("url"),
+                "is_photo": is_photo,
+                "is_direct": True,
+            })
+    else:
+        formats = _filter_formats(info.get("formats") or [])
 
-    # For photos, add a direct download entry
+    # Photo — direct download
     if media_type == "photo" and info.get("url"):
         formats = [{
             "format_id": "photo",
             "ext": info.get("ext", "jpg"),
-            "quality": "Original",
-            "filesize": None,
+            "quality": "Original Photo",
+            "filesize": info.get("filesize"),
             "vcodec": "none",
             "acodec": "none",
             "has_video": False,
             "has_audio": False,
             "direct_url": info.get("url"),
             "is_photo": True,
+            "is_direct": True,
         }]
 
     return {
@@ -269,24 +290,41 @@ async def api_info(request: Request):
         "webpage_url": info.get("webpage_url") or url,
         "media_type": media_type,
         "is_instagram": instagram,
+        "is_instagram_story": instagram_story,
     }
 
 
 def _filter_formats(formats):
+    """Filter & sort formats — prioritize video+audio merged."""
     out = []
     for f in formats:
         if not f.get("url"):
             continue
+        vcodec = f.get("vcodec")
+        acodec = f.get("acodec")
+        has_video = vcodec not in (None, "none")
+        has_audio = acodec not in (None, "none")
+
         out.append({
             "format_id": f.get("format_id"),
             "ext": f.get("ext"),
-            "quality": f.get("format_note") or f.get("resolution") or f.get("format"),
+            "quality": (
+                f.get("format_note")
+                or f.get("resolution")
+                or f.get("format")
+                or "Standard"
+            ),
             "filesize": f.get("filesize") or f.get("filesize_approx"),
-            "vcodec": f.get("vcodec"),
-            "acodec": f.get("acodec"),
-            "has_video": f.get("vcodec") not in (None, "none"),
-            "has_audio": f.get("acodec") not in (None, "none"),
+            "vcodec": vcodec,
+            "acodec": acodec,
+            "has_video": has_video,
+            "has_audio": has_audio,
+            "is_merged": has_video and has_audio,
+            "is_direct": False,
         })
+
+    # Sort: merged (video+audio) first, then by filesize desc
+    out.sort(key=lambda x: (not x["is_merged"], -(x.get("filesize") or 0)))
     return out
 
 
@@ -307,19 +345,19 @@ async def download_direct(request: Request):
     url = (body.get("url") or "").strip()
     format_id = body.get("format_id") or "best"
     media_type = body.get("type") or "video"
+    direct_url = body.get("direct_url")
 
     if not url:
         raise HTTPException(status_code=400, detail="Missing URL")
     if not is_allowed_url(url):
         raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL")
 
-    # Handle direct URL (Instagram photo)
-    direct_url = body.get("direct_url")
+    # Direct URL (Instagram photo/carousel item)
     if direct_url:
         return JSONResponse({
             "type": "direct",
             "url": direct_url,
-            "message": "Direct download URL — open in browser",
+            "message": "Direct download URL",
         })
 
     started = time.time()
@@ -327,7 +365,7 @@ async def download_direct(request: Request):
     try:
         if media_type == "audio":
             file_path = await download_audio(url, format_id)
-        elif is_instagram(url) and media_type in ("photo", "carousel"):
+        elif is_instagram(url) and media_type in ("photo", "carousel", "story"):
             file_path = await download_instagram_media(url)
         else:
             file_path = await download_video(url, format_id)
@@ -351,7 +389,7 @@ async def download_direct(request: Request):
         ".webp": "image/webp",
     }
     media = media_map.get(suffix, "application/octet-stream")
-    filename = f"sai-digital-{int(time.time())}{suffix}"
+    filename = f"orbit-video-{int(time.time())}{suffix}"
 
     logger.info(
         f"Serving {file_path.name} ({file_path.stat().st_size / 1e6:.1f} MB) "
@@ -359,7 +397,7 @@ async def download_direct(request: Request):
     )
 
     async def _delete_later():
-        await asyncio.sleep(10)
+        await asyncio.sleep(15)
         try:
             if file_path.exists():
                 file_path.unlink()
