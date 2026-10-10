@@ -1,6 +1,6 @@
 /* =========================================================================
    ORBIT VIDEO — Frontend logic
-   Fixed: fetch errors, Instagram photo/carousel, sound (merged formats)
+   ✅ FIXED: Format labels (720p, 480p) + Sound (merged format hint)
    ========================================================================= */
 
 const API_BASE = 'https://sai-digital.onrender.com';
@@ -31,7 +31,6 @@ const audioGrid = $('audio-formats-grid');
 
 let currentInfo = null;
 
-// ---- Platform detect ----------------------------------------------------
 const PLATFORM_MAP = [
     { name: 'Facebook',  re: /(facebook\.com|fb\.watch|fb\.com)/i, color: '#1877f2' },
     { name: 'Instagram', re: /(instagram\.com|instagr\.am)/i,      color: '#e4405f' },
@@ -65,7 +64,6 @@ if (urlInput) {
     });
 }
 
-// ---- Paste button -------------------------------------------------------
 if (btnPaste) {
     btnPaste.addEventListener('click', async () => {
         try {
@@ -78,7 +76,6 @@ if (btnPaste) {
     });
 }
 
-// ---- Toast --------------------------------------------------------------
 function showToast(title, message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -104,7 +101,6 @@ function hideLoading() {
     if (loadingState) loadingState.style.display = 'none';
 }
 
-// ---- Fetch with timeout -------------------------------------------------
 async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -115,7 +111,6 @@ async function fetchWithTimeout(url, options, timeoutMs) {
     }
 }
 
-// ---- Submit -------------------------------------------------------------
 if (btnSubmit) {
     btnSubmit.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -172,7 +167,6 @@ if (btnSubmit) {
     });
 }
 
-// ---- Render results -----------------------------------------------------
 function renderResults(info) {
     if (!resultsSection) return;
 
@@ -215,7 +209,6 @@ function formatBytes(bytes) {
     return `${bytes.toFixed(1)} ${units[i]}`;
 }
 
-// ---- Render formats -----------------------------------------------------
 function renderFormats(formats, mediaType) {
     if (!videoGrid || !audioGrid) return;
 
@@ -245,27 +238,24 @@ function renderFormats(formats, mediaType) {
         Video (MP4)
     `;
 
-    // ✅ FIX: Merged formats আগে দেখাও (sound সহ)
+    // ✅ FIX: Video formats — Sound badge দেখাও
     const videos = formats.filter(f => f.has_video);
-    const audios = formats.filter(f => f.has_audio && !f.has_video);
 
     if (videos.length === 0) {
         videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
     } else {
-        // Merged (video+audio) প্রথমে
-        videos.sort((a, b) => {
-            if (a.is_merged && !b.is_merged) return -1;
-            if (!a.is_merged && b.is_merged) return 1;
-            return (b.filesize || 0) - (a.filesize || 0);
-        });
-        videos.slice(0, 6).forEach((f, i) => {
+        // Height অনুযায়ী sort (backend-এ already sorted)
+        videos.slice(0, 8).forEach((f, i) => {
             videoGrid.appendChild(buildFormatCard(f, 'video', i === 0));
         });
     }
 
+    // Audio tab
     const bestForAudio = videos[0] || formats[0];
     if (bestForAudio) audioGrid.appendChild(buildFormatCard(bestForAudio, 'audio', true));
-    audios.forEach((f) => audioGrid.appendChild(buildFormatCard(f, 'audio', false)));
+    formats.filter(f => f.has_audio && !f.has_video).forEach((f) => {
+        audioGrid.appendChild(buildFormatCard(f, 'audio', false));
+    });
 
     tabVideo.classList.add('active');
     tabAudio.classList.remove('active');
@@ -277,14 +267,16 @@ function buildFormatCard(fmt, type, recommended) {
     const card = document.createElement('div');
     card.className = 'format-card' + (recommended ? ' recommended' : '');
 
-    let quality = fmt.quality || fmt.ext || 'Standard';
-    // ✅ FIX: "DASH video" → আরও পরিষ্কার label
-    if (quality.toLowerCase().includes('dash')) {
-        quality = quality.replace(/dash/gi, '').trim() || 'Standard';
+    // ✅ FIXED: Quality label
+    let quality = fmt.quality || '';
+    if (!quality) {
+        if (fmt.height) quality = `${fmt.height}p`;
+        else if (fmt.ext) quality = fmt.ext.toUpperCase();
+        else quality = 'Standard';
     }
-    if (quality === 'Standard' && fmt.ext) {
-        quality = `${fmt.ext.toUpperCase()}`;
-    }
+    
+    // "DASH video" → "Video"
+    quality = quality.replace(/dash\s*/gi, '').trim() || 'Standard';
 
     const size = formatBytes(fmt.filesize);
 
@@ -294,12 +286,18 @@ function buildFormatCard(fmt, type, recommended) {
         ? '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>'
         : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>';
 
+    // ✅ FIXED: Sound badge
     let subtitle = '';
-    if (type === 'audio') subtitle = 'MP3 192kbps';
-    else if (type === 'photo') subtitle = fmt.ext?.toUpperCase() || 'JPG';
-    else if (fmt.is_merged) subtitle = `${fmt.ext?.toUpperCase() || 'MP4'} · Sound ✓`;
-    else if (fmt.has_video && !fmt.has_audio) subtitle = `${fmt.ext?.toUpperCase() || 'MP4'} · Video only`;
-    else subtitle = fmt.ext?.toUpperCase() || 'MP4';
+    if (type === 'audio') {
+        subtitle = 'MP3 192kbps';
+    } else if (type === 'photo') {
+        subtitle = fmt.ext?.toUpperCase() || 'JPG';
+    } else {
+        // Video
+        const ext = (fmt.ext || 'mp4').toUpperCase();
+        const soundBadge = fmt.has_audio !== false ? ' · 🔊 Sound' : '';
+        subtitle = `${ext}${soundBadge}`;
+    }
 
     card.innerHTML = `
         ${recommended ? '<div class="format-badge">Recommended</div>' : ''}
@@ -333,43 +331,13 @@ function buildFormatCard(fmt, type, recommended) {
     return card;
 }
 
-// ---- Download trigger ---------------------------------------------------
 async function triggerDownload(fmt, type) {
     if (!currentInfo) return;
 
-    // ✅ FIX: Photo/Carousel direct URL — proxy দিয়ে download করাও
+    // Photo/Carousel direct URL
     if ((type === 'photo' || fmt.is_direct) && fmt.direct_url) {
-        showLoading('Preparing download...');
-        try {
-            const res = await fetchWithTimeout(API_DOWNLOAD, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: currentInfo.url,
-                    format_id: fmt.format_id || 'photo',
-                    type: type,
-                    direct_url: fmt.direct_url,
-                }),
-            }, DOWNLOAD_TIMEOUT_MS);
-
-            if (!res.ok) {
-                throw new Error('Download failed');
-            }
-
-            const data = await res.json();
-            if (data.url) {
-                // Direct URL — নতুন tab-এ খুলো
-                window.open(data.url, '_blank', 'noopener');
-                showToast('Opening Photo', 'Long-press → Save image', 'info');
-            }
-        } catch (err) {
-            console.error('Photo download error:', err);
-            // Fallback: সরাসরি URL খুলে দাও
-            window.open(fmt.direct_url, '_blank', 'noopener');
-            showToast('Opening Photo', 'Long-press → Save image', 'info');
-        } finally {
-            hideLoading();
-        }
+        window.open(fmt.direct_url, '_blank', 'noopener');
+        showToast('Opening Photo', 'Long-press → Save image', 'info');
         return;
     }
 
@@ -433,7 +401,6 @@ async function triggerDownload(fmt, type) {
     }
 }
 
-// ---- Tab switching ------------------------------------------------------
 if (tabVideo && tabAudio) {
     tabVideo.addEventListener('click', () => {
         tabVideo.classList.add('active');
@@ -449,7 +416,6 @@ if (tabVideo && tabAudio) {
     });
 }
 
-// ---- Reveal on scroll ---------------------------------------------------
 (function revealOnScroll() {
     const els = document.querySelectorAll('.reveal');
     if (!els.length) return;
